@@ -109,6 +109,21 @@ The host checks showed:
 - This is a host NVIDIA driver/GPU state failure, not a Pennyroyal image or
   CUDA_VISIBLE_DEVICES configuration failure.
 
+The Blackwell is an external PCIe GPU and is hotplug-capable in the device tree:
+
+- GPU BDF: `0000:4b:00.0`
+- PCI path includes the hotplug bridge at `0000:4a:00.0`
+- `reset_method`: `flr bus`
+- PCI device is enabled and runtime-active
+
+A later check still showed the same failure. Kernel logs additionally reported
+`pciehp ... no response from device` on the upstream hotplug ports. This points
+to an eGPU link/device state problem in addition to the NVIDIA MMU/GSP errors.
+A clean eGPU power-cycle or host reboot is therefore preferred over repeatedly
+restarting the container. After the device returns, rerun `nvidia-smi -L`,
+regenerate CDI if the UUID changed, and run the preflight before starting the
+service.
+
 Do not repeatedly restart Pennyroyal while GPU1 is in this state. First collect:
 
 ```bash
