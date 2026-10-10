@@ -2,7 +2,13 @@
 
 Date: 2026-10-11
 Repository: `/srv/github/pennyroyal`
-Branch: `john/pennyroyal-container-v3.0-repair`
+Working branch: `hermes/pennyroyal-local-dev`
+Base branch: `john/pennyroyal-container-v3.0-repair`
+
+The working branch is local-only and has no upstream configured. Do not push
+local development, deployment documentation, or host-specific commits to the
+John branch. A private fork may be added later as a separate remote after an
+explicit decision.
 
 ## Agent continuation rule
 

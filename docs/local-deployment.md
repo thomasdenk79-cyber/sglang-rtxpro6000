@@ -7,7 +7,8 @@ the deployment changes. Do not place tokens or private keys in this repository.
 ## Current deployment
 
 - Repository: `/srv/github/pennyroyal`
-- Branch: `john/pennyroyal-container-v3.0-repair`
+- Working branch: `hermes/pennyroyal-local-dev` (local-only)
+- Base branch: `john/pennyroyal-container-v3.0-repair`
 - Source commit: `5d33142c1f3fd3df1548b9682f728fcdd8c7a710`
 - Compile checkpoint commit: `02f6b6532b498a36455f0d1a20367785033b137e`
 - Image: `localhost/pennyroyal:john-repair-5d33142c1`
