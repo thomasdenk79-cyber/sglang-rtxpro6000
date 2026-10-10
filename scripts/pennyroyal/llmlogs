@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat >&2 <<'EOF'
+Usage: llmlogs [options] [pod-or-unit ...]
+
+Show journalctl logs for running Podman pods managed by systemd/Quadlet.
+With no names, all currently running pods are selected.
+
+Options:
+  -f, --follow       Follow logs (journalctl -f)
+  -n, --lines N      Show N lines per unit (default: 100)
+  -u, --unit UNIT    Read this systemd unit directly; repeatable
+  -h, --help         Show this help
+EOF
+}
+
+follow=0
+lines=100
+units=()
+targets=()
+
+while (($#)); do
+  case "$1" in
+    -f|--follow) follow=1; shift ;;
+    -n|--lines)
+      (($# >= 2)) || { echo "llmlogs: --lines needs a number" >&2; exit 2; }
+      [[ "$2" =~ ^[0-9]+$ ]] || { echo "llmlogs: invalid line count: $2" >&2; exit 2; }
+      lines="$2"; shift 2 ;;
+    -u|--unit)
+      (($# >= 2)) || { echo "llmlogs: --unit needs a unit name" >&2; exit 2; }
+      units+=("$2"); shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    --) shift; targets+=("$@"); break ;;
+    -*) echo "llmlogs: unknown option: $1" >&2; usage; exit 2 ;;
+    *) targets+=("$1"); shift ;;
+  esac
+done
+
+journal_args=(-n "$lines" --no-pager -o short-precise)
+(( follow )) && journal_args+=(-f)
+
+if ((${#targets[@]} == 0 && ${#units[@]} == 0)); then
+  mapfile -t targets < <(podman pod ps --filter status=running --format '{{.Name}}')
+fi
+
+if ((${#targets[@]} == 0 && ${#units[@]} == 0)); then
+  echo "Keine laufenden Pods und keine Units angegeben."
+  exit 0
+fi
+
+for target in "${targets[@]}"; do
+  if podman pod exists "$target" 2>/dev/null; then
+    mapfile -t pod_units < <(
+      podman ps --filter "pod=$target" --format '{{.Label "io.podman.systemd.unit"}}' |
+        awk 'NF && !seen[$0]++'
+    )
+    if ((${#pod_units[@]})); then
+      units+=("${pod_units[@]}")
+    else
+      echo "===== Podman-Logs: $target ====="
+      mapfile -t containers < <(podman ps --filter "pod=$target" --format '{{.Names}}')
+      for container in "${containers[@]}"; do
+        echo "--- Container: $container ---"
+        podman logs --timestamps --tail "$lines" "$container" || true
+      done
+    fi
+  else
+    units+=("$target")
+  fi
+done
+
+if ((${#units[@]})); then
+  mapfile -t unique_units < <(printf '%s\n' "${units[@]}" | awk 'NF && !seen[$0]++')
+  for unit in "${unique_units[@]}"; do
+    echo "===== journalctl --user -u $unit ====="
+    if ! journalctl --user -u "$unit" "${journal_args[@]}"; then
+      echo "Hinweis: User-Journal nicht verfügbar; versuche systemweites Journal." >&2
+      journalctl -u "$unit" "${journal_args[@]}" || true
+    fi
+  done
+fi
