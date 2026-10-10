@@ -4,6 +4,15 @@ Date: 2026-10-11
 Repository: `/srv/github/pennyroyal`
 Branch: `john/pennyroyal-container-v3.0-repair`
 
+## Agent continuation rule
+
+The operator will not execute the recovery or startup commands manually. The
+next agent must read this handover, perform the checks and recovery steps itself,
+and keep updating this repository after every material action. Do not merely
+print commands for the operator. If a reboot or physical eGPU power-cycle is
+required, state the exact blocker and wait for the operator to perform that
+external action; after the session returns, resume verification automatically.
+
 ## Completed
 
 - ZFS-backed `/srv` environment is mounted and used for models, caches, repos,
