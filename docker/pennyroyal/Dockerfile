@@ -23,9 +23,9 @@ ENV CUDA_HOME=/usr/local/cuda-13.3 \
     UV_PYTHON_INSTALL_DIR=/opt/python UV_NO_CACHE=1 UV_LINK_MODE=copy \
     PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
     NVIDIA_VISIBLE_DEVICES=all NVIDIA_DRIVER_CAPABILITIES=compute,utility \
-    PENNY_BUILD_JOBS=4 MAX_JOBS=4 CMAKE_BUILD_PARALLEL_LEVEL=4 \
-    CARGO_BUILD_JOBS=4 FLASHINFER_NINJA_JOBS=4 FLASHINFER_NVCC_THREADS=1 \
-    TORCHINDUCTOR_COMPILE_THREADS=4 \
+    PENNY_BUILD_JOBS=8 MAX_JOBS=8 CMAKE_BUILD_PARALLEL_LEVEL=8 \
+    CARGO_BUILD_JOBS=8 FLASHINFER_NINJA_JOBS=8 FLASHINFER_NVCC_THREADS=8 \
+    TORCHINDUCTOR_COMPILE_THREADS=8 \
     CARGO_PROFILE_RELEASE_DEBUG=0 CARGO_INCREMENTAL=0
 
 FROM base AS build
@@ -87,9 +87,9 @@ RUN uv pip install --python .venv/bin/python --no-deps \
 # at this layer, before the COPY below, is what keeps their bytes out of the
 # published image instead of merely deleting them in a later one.
 # The hosted build action exited 137 during this compile with four jobs.
-# Serialize this memory-heavy extension on the small runner. Local builders
-# can raise the build-only argument; the serving/JIT defaults stay unchanged.
-ARG FLASHINFER_BUILD_JOBS=1
+# Use the local machine's initial eight-job compile budget for this memory-heavy
+# extension; the build argument remains overridable for later tuning.
+ARG FLASHINFER_BUILD_JOBS=8
 RUN MAX_JOBS="$FLASHINFER_BUILD_JOBS" FLASHINFER_NINJA_JOBS="$FLASHINFER_BUILD_JOBS" \
     FLASHINFER_WORKSPACE_BASE=/tmp/penny-fi-sm120 \
     .venv/bin/python scripts/pennyroyal/flashinfer/install.py \

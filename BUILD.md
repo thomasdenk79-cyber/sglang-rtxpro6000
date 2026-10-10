@@ -156,7 +156,7 @@ python -m pip install .
 meson setup build-posix --buildtype=release \
   --prefix="$NIXL_PREFIX" --libdir=lib64 \
   -Denable_plugins=POSIX -Dnixl_cuda_arch_list=86,89,120
-ninja -C build-posix -j "${PENNY_BUILD_JOBS:-4}" install
+ninja -C build-posix -j "${PENNY_BUILD_JOBS:-8}" install
 python -m pip install build-posix/src/bindings/python/nixl-meta/nixl-*-py3-none-any.whl
 export LD_LIBRARY_PATH="$NIXL_PREFIX/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 ```

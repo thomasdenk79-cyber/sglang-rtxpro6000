@@ -592,7 +592,7 @@ if [[ ! -f "$ROUTER_SRC/pyproject.toml" ]]; then
 fi
 
 echo "[checkout-router] building sglang-router from $ROUTER_SRC"
-export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-4}"
+export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-8}"
 python3 -m maturin --version >/dev/null 2>&1 \
   || python3 -m pip install --no-cache-dir "maturin<1.14"
 
