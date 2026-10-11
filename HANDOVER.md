@@ -146,3 +146,16 @@ performance. Record every run's:
 
 The current Quadlet uses RAM PLE, 32 GB HiCache, TP1, four max running requests,
 CPU media preprocessing, and local API port `127.0.0.1:8001`.
+
+## Pre-restart state — 2026-10-11
+
+- The eGPU recovered after the host restart: `nvidia-smi -L` sees the target
+  Blackwell UUID and the NVIDIA driver is `610.57.04`.
+- CDI and `scripts/pennyroyal/host-preflight.sh` pass.
+- The six missing Git-LFS weight files were downloaded successfully. Their total
+  size is `30,400,159,113` bytes and all Safetensors headers validate.
+- Pennyroyal was started again and reached model initialization. The container
+  was still `starting` while deriving the NIXL namespace; `/health` was not yet
+  ready at the time of this handover.
+- A host restart is now required. After boot, verify the GPU, regenerate CDI if
+  needed, run the preflight, and then verify the service and API endpoints.
