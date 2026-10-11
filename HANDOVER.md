@@ -2,8 +2,12 @@
 
 Date: 2026-10-11
 Repository: `/srv/github/pennyroyal`
-Working branch: `hermes/pennyroyal-local-dev`
-Base branch: `john/pennyroyal-container-v3.0-repair`
+Working branch: `tom-eval-pennyroyal-3.0-merged-directports-john-experimental`
+Base branches: `pennyroyal-main-sm120-final` plus `hermes/pennyroyal-local-dev`
+
+This is an experimental Tom evaluation branch. It combines the current
+Penny Royal 3.0 main line with local deployment work and is not a production
+release. OOM, GPU-driver and eGPU/PCIe stability issues remain open.
 
 The working branch is local-only and has no upstream configured. Do not push
 local development, deployment documentation, or host-specific commits to the

@@ -13,6 +13,12 @@ hardware. Penny Royal is an SGLang-derived runtime tuned for **NVIDIA RTX PRO
 
 **524K context · FR-Spec + adaptive MTP · Persistent conversation cache**
 
+> **Tom evaluation branch:** this checkout is an experimental merged branch
+> for local RTX PRO 6000 testing. It combines the Penny Royal 3.0 baseline,
+> direct-port work, John's container fixes and local deployment changes. It is
+> not a production release. OOM, GPU-driver and eGPU/PCIe issues remain open;
+> validate memory use and device stability before long runs.
+
 [Get started](#build-and-launch) · [Performance](#performance) ·
 [3.0 release notes](RELEASE_NOTES_3.0.md) · [Community results](COMMUNITY-RESULTS.md)
 
