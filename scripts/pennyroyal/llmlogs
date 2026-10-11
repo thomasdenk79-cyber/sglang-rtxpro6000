@@ -5,8 +5,9 @@ usage() {
   cat >&2 <<'EOF'
 Usage: llmlogs [options] [pod-or-unit ...]
 
-Show journalctl logs for running Podman pods managed by systemd/Quadlet.
-With no names, all currently running pods are selected.
+Show journalctl logs for Podman containers and Quadlet units.
+With no names, the user journal is filtered for container-related entries,
+including stopped/failed containers and units.
 
 Options:
   -f, --follow       Follow logs (journalctl -f)
@@ -41,26 +42,26 @@ done
 journal_args=(-n "$lines" --no-pager -o short-precise)
 (( follow )) && journal_args+=(-f)
 
+# With no explicit target, search the complete user journal instead of only
+# currently running pods. This includes stopped/failed containers and the
+# systemd/Quadlet processes that emitted their container logs.
 if ((${#targets[@]} == 0 && ${#units[@]} == 0)); then
-  mapfile -t targets < <(podman pod ps --filter status=running --format '{{.Name}}')
-fi
-
-if ((${#targets[@]} == 0 && ${#units[@]} == 0)); then
-  echo "Keine laufenden Pods und keine Units angegeben."
+  journalctl --user "${journal_args[@]}" \
+    | grep --color=always --line-buffered -Ei 'podman|conmon|container|PODMAN_|pennyroyal' || true
   exit 0
 fi
 
 for target in "${targets[@]}"; do
   if podman pod exists "$target" 2>/dev/null; then
     mapfile -t pod_units < <(
-      podman ps --filter "pod=$target" --format '{{.Label "io.podman.systemd.unit"}}' |
+      podman ps -a --filter "pod=$target" --format '{{.Label "io.podman.systemd.unit"}}' |
         awk 'NF && !seen[$0]++'
     )
     if ((${#pod_units[@]})); then
       units+=("${pod_units[@]}")
     else
       echo "===== Podman-Logs: $target ====="
-      mapfile -t containers < <(podman ps --filter "pod=$target" --format '{{.Names}}')
+      mapfile -t containers < <(podman ps -a --filter "pod=$target" --format '{{.Names}}')
       for container in "${containers[@]}"; do
         echo "--- Container: $container ---"
         podman logs --timestamps --tail "$lines" "$container" || true
