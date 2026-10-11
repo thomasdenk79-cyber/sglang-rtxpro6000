@@ -9,10 +9,9 @@ This is an experimental Tom evaluation branch. It combines the current
 Penny Royal 3.0 main line with local deployment work and is not a production
 release. OOM, GPU-driver and eGPU/PCIe stability issues remain open.
 
-The working branch is local-only and has no upstream configured. Do not push
-local development, deployment documentation, or host-specific commits to the
-John branch. A private fork may be added later as a separate remote after an
-explicit decision.
+The working branch has its own remote tracking branch with the same name.
+Keep local development, deployment documentation and host-specific commits on
+this Tom evaluation branch; do not push them to John's main or repair branch.
 
 ## Agent continuation rule
 
