@@ -9,6 +9,30 @@ This is an experimental Tom evaluation branch. It combines the current
 Penny Royal 3.0 main line with local deployment work and is not a production
 release. OOM, GPU-driver and eGPU/PCIe stability issues remain open.
 
+## Test hardware
+
+The primary test host is a **Lenovo ThinkPad P16 Gen 2** (`21FBSELM00`, BIOS
+`N3TET64W (2.00)`) with a 13th Gen Intel Core i9-13950HX (24 cores / 32
+threads) and 188 GiB RAM. The host runs Ubuntu 26.04.1 with kernel
+`7.0.0-30-generic`.
+
+The internal graphics devices are Intel Raptor Lake UHD (`00:02.0`, `i915`)
+and NVIDIA RTX 3500 Ada Laptop GPU (`01:00.0`, currently `nouveau`). The
+Samsung external monitor is connected as `DP-2` through the internal NVIDIA
+GPU; the internal laptop panel is `eDP-1` on Intel. This multi-GPU Wayland
+path is part of the stability investigation.
+
+The intended external accelerator is a separate **NVIDIA RTX PRO 6000
+Blackwell eGPU**. It is currently disconnected and was not present in the
+latest PCI inventory. No Blackwell result should be treated as a completed
+test until the eGPU is physically connected and the PCIe/driver state is
+verified.
+
+Storage in the test host consists of two Kingston 4-TB NVMe drives. The active
+Ubuntu system is on the second drive's encrypted Btrfs volume; the first drive
+contains BitLocker partitions. These storage facts are recorded for
+reproducibility and are not a request to modify either drive.
+
 The working branch has its own remote tracking branch with the same name.
 Keep local development, deployment documentation and host-specific commits on
 this Tom evaluation branch; do not push them to John's main or repair branch.
