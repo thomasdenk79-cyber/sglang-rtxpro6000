@@ -159,3 +159,21 @@ CPU media preprocessing, and local API port `127.0.0.1:8001`.
   ready at the time of this handover.
 - A host restart is now required. After boot, verify the GPU, regenerate CDI if
   needed, run the preflight, and then verify the service and API endpoints.
+
+## Post-restart continuation — 2026-10-11
+
+- The RTX PRO 6000 Blackwell is visible as GPU 1 with UUID
+  `GPU-780d3589-9811-40ec-db66-93a9146697f3`, compute capability 12.0, and
+  97,887 MiB total memory. The NVIDIA driver is `610.57.04`.
+- CDI was stale after the driver change: `/etc/cdi/nvidia.yaml` referenced
+  `615.78.08` libraries. It was regenerated successfully with
+  `sudo -n nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml`.
+- Host preflight passes and the Quadlet now starts. Pennyroyal is active and
+  has reached NIXL namespace derivation for the Flash-Next FR-Spec profile.
+- Model loading and SM120 autotuning completed successfully. The container is
+  healthy, `/health` returns successfully, `/v1/models` reports `pennyroyal`
+  with `max_model_len=524288`, and a non-thinking chat completion returned
+  `BLACKWELL_OK`.
+- The Blackwell currently uses about 89,330 MiB of 97,887 MiB. The service is
+  running with the original checkpoint, RAM PLE, 32 GB host HiCache, and the
+  separate NIXL disk tier.

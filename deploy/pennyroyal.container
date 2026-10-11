@@ -7,6 +7,7 @@ ConditionPathExists=/srv/ai/models/RadixArk-Qwen3.8-Flash-Next-NVFP4/config.json
 [Container]
 Image=localhost/pennyroyal:john-repair-5d33142c1
 ContainerName=pennyroyal
+Network=llm-inference.network
 User=1000:1000
 AddDevice=nvidia.com/gpu=GPU-780d3589-9811-40ec-db66-93a9146697f3
 PublishPort=127.0.0.1:8001:8001
@@ -23,7 +24,7 @@ Environment=CACHE_BASE=/cache
 Environment=NIXL_STORAGE_BASE=/nixl
 Environment=NIXL_CONFIG=/config/nixl-posix-frspec.toml
 Environment=PENNY_PLE_BACKEND=ram
-Environment=PENNY_HICACHE_SIZE_GB=32
+Environment=PENNY_HICACHE_SIZE_GB=12
 Environment=MAX_RUNNING_REQUESTS=4
 Environment=MAX_MAMBA_CACHE_SIZE=24
 Environment=TP_SIZE=1
