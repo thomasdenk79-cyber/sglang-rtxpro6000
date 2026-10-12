@@ -223,3 +223,98 @@ Intel turbo: enabled (intel_pstate/no_turbo=0)
 
 These settings may be reset by reboot or power-management software. They are
 not part of the container image and should be recorded with benchmark results.
+
+## Overload control and fallback routing — best practices (2026-10-12, not yet finalized)
+
+Decisions here are deliberately deferred until the c16 concurrency-ladder
+(`bench-results/c16-ladder-*`) identifies the sustainable `max_running_requests`
+knee per workload tier; everything below documents the mechanism, not the final
+numbers. The LiteLLM gateway changes were written to `~/.config/litellm/config.yaml`
+(backup: `config.yaml.bak-20261012`) but are inert until a proxy reload, which is
+also deferred.
+
+### Memory model — what actually costs VRAM
+
+* A **waiting** request (anything beyond `--max-running-requests`, capped by
+  `--max-queued-requests`) lives in host RAM only: token ids + scheduler
+  bookkeeping. Worst case ~0.5 GB host for a full 32-deep queue of 100k-token
+  agent prompts. No GPU tensors are allocated for waiting requests.
+* **Admitted** requests cost VRAM: recurrent-state slots are reserved around
+  prefill admission (`extra_buffer_lazy` ≈ 4 slots/request, measured 58 MB/slot
+  on this model), activation buffers scale with **prefill batch tokens**
+  (`--max-prefill-tokens`, not the running cap), and KV grows per token
+  (measured 12.4 KB/token incl. draft pool).
+* The 2026-10-12 14:00 crash (`long_c32` on the c8 profile) was **not** "queue
+  memory": an unbounded admission storm (no `--max-queued-requests` was set —
+  the upstream default is unlimited) let ~32 in-flight admissions hold 25–28
+  of 35 mamba slots, drove the most aggressive chunk+decode overlap
+  (2×8192-token prefill beside 7 decodes), and fragmented the allocator
+  (1.40 GiB reserved-unallocated at OOM). The queue cap plus c16 slot sizing
+  removes both the slot pressure and the batch-shape outlier.
+* A running request is **never** offloaded to make room for the next one: its
+  KV and mamba state stay resident until it finishes. Slot turnover therefore
+  costs one intrinsic prefill for the *new* request (identical at any
+  concurrency), not a reload of the old one. HiCache (`write_through`) already
+  keeps the finished session's copy warm in host RAM/SSD for its next turn.
+* The real degradation path is **KV-pool occupancy**, observable as
+  `full token usage` in the decode log: sustained > ~0.85 evicts other
+  sessions' cached prefixes (next turn reloads from RAM/SSD or re-prefills),
+  and exhaustion **retracts** running requests (`retraction_policy: length`),
+  forcing a full re-prefill on re-admission. That, not queue depth, is the
+  throughput/quality killer the operator intuition points at.
+
+### Sizing rules
+
+* Sustainable concurrency ≈ `pool_tokens × 0.7 ÷ E[session context]`, floored
+  by the mamba-slot requirement (`requests × 4 + 3`) and graph-bucket cost.
+  At the c16 profile (778,816-token pool): Ø15k sessions → 36 (running cap
+  binds first), Ø40k → 14, Ø60k → 9. Expect the ladder to show the knee at
+  high c on the xlong tier while short/medium scale cleanly.
+* Queue depth is a **latency/burst knob, never a VRAM knob**. 2× running
+  absorbs slot-turnover races so requests that would be served <1 s later are
+  not 429'd into coarse client backoff (Claude Code retries at 1 s, 2 s, 4 s…).
+  The binding constraint on queue depth is client timeout, not memory.
+* 429 is the intended signal: SGLang answers "The request queue is full."
+  immediately; queue depth is observable out-of-band via `/get_load`
+  (num_running/num_waiting) and Prometheus (`enable_metrics: true` is live).
+
+### Layered overload defense (target architecture)
+
+1. **Engine envelope:** `--max-running-requests <ladder knee>`,
+   `--max-queued-requests 2×`, mamba slots per requests×4+3, mem-fraction
+   funding both plus ≥ ~2 GB post-graph headroom (this is what the 0.947
+   c16 fraction buys: measured `available_gpu_mem` 5.10 GB at init vs 2.85 GB
+   before, at the cost of a 33 % smaller KV pool).
+2. **Gateway gate:** LiteLLM `max_parallel_requests` at the deployment, set at
+   the engine running cap (draft: 18). Overflow gets a gateway 429 without
+   ever reaching the server.
+3. **Fallback + cooldown:** `num_retries: 0` makes a 429 fall through
+   instantly; `allowed_fails: 3` + `cooldown_time: 20` (previously
+   `disable_cooldowns: true` suppressed this) takes the deployment out of
+   rotation during sustained overload so steady traffic rides the fallbacks
+   undisturbed. This event-based scheme approximates queue-depth-aware routing
+   (which LiteLLM cannot do natively) with zero custom components; a
+   `/get_load`-polling watchdog is the escalation option if preemptive
+   routing ever matters more than one wasted hop per transition.
+4. **Client layer:** standard 429 exponential backoff (all agent SDKs have it).
+
+### Fallback routing policy — draft for benchmark-time decision
+
+Current `fallbacks: qwen → bonsai[, luna]` would route architect-level overflow
+to bonsai-27b, which is the wrong quality trade: bonsai is a dense 27B fork at
+~10–20 tok/s and roughly an order of magnitude below Flash-Next on the
+intelligence index, so quality-sensitive overflow must prefer luna (cloud,
+already covered by the flat ChatGPT subscription, more reliable than the local
+stack, zero maintenance). Efficiency ledger at measured figures:
+bonsai ≈ 130 W ÷ ~15 tok/s ≈ **~9 J/token**, pennyroyal ≈ 600 W ÷ ~600+ tok/s
+≈ **~1 J/token**, i.e. pennyroyal is both ~9× cheaper per token and far
+smarter; bonsai's throughput advantage over an idle cost never materializes
+while its GPU draws 130 W under load.
+
+Remaining rational roles for bonsai (to confirm after the ladder): emergency
+fallback while pennyroyal restarts or is re-benchmarked, trivial mechanical
+local tasks (formatting, small edits, "simple implementer" agent roles), and
+**offline continuity** — luna requires internet and account availability,
+bonsai does not. If none of those justify keeping a patched, tuned,
+benchmarked second stack, retiring it is on the table; the decision belongs to
+the same post-benchmark review as the gateway rollout.
