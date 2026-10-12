@@ -344,3 +344,43 @@ overflow falling through — interactive knee ~c8, throughput plateau c12–c16.
 Follow-up owed: bonsai's 10–20 tok/s on the RTX 3500 Ada is anomalous for a
 fully-resident 4–6 GB model (~60 tok/s bandwidth ceiling) and needs a
 llama.cpp flag/quant/context audit before any keep-or-retire decision.
+
+### Median confirmation + adaptive-spec data (2026-10-12 15:24–15:58)
+
+The ladder was repeated verbatim (`c16-ladder-20261012-152457`); medians of
+both runs confirm the first table within noise (long c16: 732 out tok/s,
+ITL 13.4 ms; xlong c4 remains the peak at 707; c3+ aggregate plateau ±3 %).
+`short` stays the noisiest tier because supervising-agent traffic interleaves
+on the shared endpoint. NRestarts=0 across both full suites including the
+cold 32k/65k/100k ramps — the c16 envelope is repeatable, not lucky.
+
+Pennyroyal's adaptive-spec suite (same dir, `pennyroyal-adaptive-run2/`)
+shows the width policy working as designed: high-reuse workloads at c1
+accept ~6.8 draft tokens (W8/steps=7 engaged, 403 tok/s), low-reuse drops to
+~2.3 (W4, 190 tok/s), transition oscillates between both, and at c8 the
+mid-accept regime yields the top aggregate numbers seen anywhere (1328 tok/s
+on transition, zero errors). No policy change is indicated by this data.
+
+### NVFP4 KV: not applicable to either serving stack (2026-10-12)
+
+The NVFP4 KV-cache exploration belongs to Bonsai, not Pennyroyal, and is a
+dead end today on both sides: (1) the PrismML llama.cpp fork ships no fp4 KV
+type at all (verified via `--help` and binary strings; upstream support is
+open issue ggml-org/llama.cpp#26989); (2) forcing `KV_DTYPE=nvfp4` on
+Pennyroyal fails at argument resolution because KV4 requires
+triton/torch_native/flex_attention/trtllm_mha, conflicting with the
+qualified flashinfer config — the brief crash loop this caused (8 fast exits
+via Restart=always; GPU itself never dropped) was rolled back within
+minutes. q4_0 remains the de-facto NVFP4-class option: measured q8_0 A/B was
+speed-neutral (±3 %) at 3.7× the KV bytes, so Bonsai stays q4_0.
+
+### Bonsai (RTX 3500 Ada) — fully resident after the `--fit` fix
+
+Root cause of the old 10–20 tok/s: `--fit on` offloaded layer 0 to CPU
+(visible as the `resolve_fused_ops ... assigned to device CPU` warning).
+run.sh/compose now force `--fit off -ngl 99 --parallel 2` with the ≥1 GB
+free-VRAM rule; steady state 9877/12282 MiB used, 2×98304-token slots, zero
+CPU layers. Median-of-3 (`bench-results/kit-20261012-1455.jsonl`,
+`scripts/bench_kit.py`): c1 48–50 tok/s, c2 77–81 tok/s aggregate — matching
+the ~60 tok/s bandwidth ceiling estimate and giving the two-admin/implementer
+setup its intended speed.
