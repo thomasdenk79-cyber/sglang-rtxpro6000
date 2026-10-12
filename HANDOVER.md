@@ -9,6 +9,59 @@ This is an experimental Tom evaluation branch. It combines the current
 Penny Royal 3.0 main line with local deployment work and is not a production
 release. OOM, GPU-driver and eGPU/PCIe stability issues remain open.
 
+## Current incident — 2026-10-12
+
+At 13:03 CEST the 12:57 startup failed during a 31,169-token prompt prefill:
+SGLang logged `torch.OutOfMemoryError` requesting 160 MiB with 136.88 MiB free
+and 94.71 GiB already in use. A Triton kernel was first loaded after server
+startup with 0.49 GiB free. The log also contains PCIe/AER reports during
+Blackwell enumeration, but the direct SGLang failure was CUDA OOM.
+
+SGLang's `running_phase_sigquit_handler` routes a child failure to
+`kill_process_tree(os.getpid())`; `python/sglang/srt/utils/common.py` calls
+`sys.exit(0)` when PID 1 kills itself. systemd therefore recorded exit status 0
+and `Restart=on-failure` did not restart the unit (`NRestarts=0`).
+
+At the operator's direction, the serving configuration was tuned while
+preserving `--mem-fraction-static 0.981` (the existing tracked experimental
+setting) and leaving automatic `max_total_tokens` sizing unchanged. The active
+launcher now uses `PREFILL_CHUNK_SIZE=8192` and caps decode CUDA graph capture
+at batch size 8, matching `MAX_RUNNING_REQUESTS=8`. Torch compile settings
+remain unchanged. The Quadlet recovery policy is `Restart=always` with a
+60-second delay; this is a service-level workaround, not a correction to
+SGLang's zero exit status.
+
+The 13:38 CEST restart loaded the model and allocated KV pools using the new
+settings (`max_total_num_tokens=1,159,552`, `chunked_prefill_size=8192`,
+`available_gpu_mem=2.85 GB` after allocation). The API was still initializing
+at 13:41:54, so readiness and a small completion remain to be verified. Do not
+run a long-prompt OOM reproduction or performance benchmark without a separate
+operator-approved test window.
+
+Observed warnings and their disposition:
+
+- Triton kernels are still being loaded lazily after startup with less than
+  1 GiB free. The log recommends preloading them; this is an image/runtime
+  startup-coverage issue, not fixed by host config. Keep monitoring for OOM;
+  do not suppress the warning.
+- The checkpoint supplies no FP8 KV scaling factors, so SGLang defaults to
+  1.0 and warns about possible accuracy loss. This needs checkpoint/runtime
+  qualification, not a speculative local override.
+- SGLang reports derived context length 262,144 versus configured 524,288.
+  The deployment intentionally uses a YaRN override; long-context correctness
+  still needs a validated test.
+- NIXL's `/nonexistent-nixl-probe` open failure is part of the startup
+  capability probe. The Mamba pool is not OS-page-aligned and falls back to
+  bounce buffers; only the QSA compressed pool reports zero-copy. These are
+  performance/implementation observations, not user-configurable errors.
+- Adaptive speculative decoding repeatedly switches between 3 and 7 steps.
+  Do not change the approved policy based only on decode logs; first compare
+  latency and acceptance under a controlled workload.
+- `podman stats` showed about 107% CPU for Pennyroyal while its cgroup had
+  `cpu.max=max 100000`, no CPU quota, and access to CPUs 0-31 (32 online).
+  This is approximately 1.07 cores; desktop container views may normalize
+  utilization per core and display >100%. No CPU cap was found or changed.
+
 ## Test hardware
 
 The primary test host is a **Lenovo ThinkPad P16 Gen 2** (`21FBSELM00`, BIOS
@@ -204,3 +257,16 @@ CPU media preprocessing, and local API port `127.0.0.1:8001`.
 - The Blackwell currently uses about 89,330 MiB of 97,887 MiB. The service is
   running with the original checkpoint, RAM PLE, 32 GB host HiCache, and the
   separate NIXL disk tier.
+
+## Historical verification — 2026-10-11
+
+- The current host session does not see the external Blackwell: `nvidia-smi -L`
+  reports only the internal RTX 3500 Ada.
+- The CDI UUID entry for `GPU-780d3589-9811-40ec-db66-93a9146697f3` is absent,
+  so starting Pennyroyal fails during Podman device setup with exit status 126.
+- The model checkout remains present at `/srv/ai/models/RadixArk-Qwen3.8-Flash-Next-NVFP4` and is approximately 319 GB.
+- The service was stopped after verification to prevent repeated restart attempts.
+- The tracked deployment source is the Tom branch in
+  `/home/z000g9hu/work/sglang-rtxpro6000`; its Quadlet now references the
+  verified remote image digest. Re-run the recovery sequence above after the
+  eGPU is connected or the host has been rebooted.
