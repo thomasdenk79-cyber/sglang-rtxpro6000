@@ -62,7 +62,7 @@ after every case. Tables via `benchmark/summarize_ladder.py`.
 | 2×490 k parallel | both complete, pool 0.91, no retraction, NRestarts 0 |
 | 490 k warm rehydrate | TTFT 2.4 s (cold: ~19–35 s) |
 | overflow @ c32 | clean 503s at queue cap, zero errors among admitted, engine stable |
-| multi-turn grow (2 sessions) | at 163 k tokens/session: 99.8 % cache-hit via HiCache, device pool only 0.14 used (prefix lives in host tier); TTFT grows ~11→19 s as rehydrate-bound |
+| multi-turn grow (2 sessions, to ~550 k each) | every turn 99.8 % cache-hit via HiCache; device pool usage stayed ≤0.15 (prefixes offloaded to host tier); zero retractions, zero OOM, NRestarts 0; TTFT linear in session size: t40/163 k→19 s, t90/360 k→39 s, t146/≈550 k→62 s (≈9 k tok/s effective rehydrate shared) |
 
 ## Deviations from upstream defaults that matter for reproduction
 
@@ -74,3 +74,11 @@ after every case. Tables via `benchmark/summarize_ladder.py`.
 4. Overflow is signalled as 503 + text body, not 429; routers must match both.
 5. HiCache storage roots are namespaced by KV dtype — never share cache
    roots across different `--kv-cache-dtype` values.
+6. Requests above the nominal context window are accepted when the excess
+   is cache-resident (observed live: a 1 046 651-token request with
+   1 046 528 cached). Quality beyond trained length is not guaranteed, but
+   the memory system handles it: host tier 32 GB ≈ ~3 M fp8 KV tokens, so
+   2×900 k sessions fit; TTFT ≈ 100 s/turn extrapolated from the measured
+   linear rehydrate curve. Prefill *compute* is never re-paid (99.8 %
+   cache hits) — the price is TTFT, not thrash.
+   Test log: `bench-results/recipe-20261012-214118/grow_2sessions.log`.
