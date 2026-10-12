@@ -354,6 +354,62 @@ ITL 13.4 ms; xlong c4 remains the peak at 707; c3+ aggregate plateau ±3 %).
 on the shared endpoint. NRestarts=0 across both full suites including the
 cold 32k/65k/100k ramps — the c16 envelope is repeatable, not lucky.
 
+### Ladder v2 — saturated full grid c1–c32 incl. xxlong (bench-results/ladder-merged)
+
+Method fix over v1: `--num-prompts = max(2c,12)` so every level is genuinely
+saturated (v1's fixed prompt counts silently under-saturated the high-c
+long/xlong rows — v1's "xlong peak at c4" was that artifact). Runner
+`benchmark/run_ladder_full.sh`, tables via
+`benchmark/summarize_ladder.py bench-results/ladder-merged`. The merged tree
+combines run `161504` (clean through xlong c16) with run `164447` (everything
+after a 16:44–16:56 window where both runs briefly overlapped); the short-tier
+c1–c3 numbers carry mild supervising-agent contamination. NRestarts=0 across
+the whole grid including xxlong c32.
+
+Aggregate output tok/s (total tokens processed per run in parentheses):
+
+| tier | c1 | c2 | c4 | c6 | c8 | c12 | c16 | c24 | c32 |
+|---|---|---|---|---|---|---|---|---|---|
+| short 256 | 226 (4k) | 278 (4k) | 470 (4k) | 435 (6k) | 535 (8k) | 403 (12k) | 652 (16k) | 634 (25k) | 637 (33k) |
+| medium 1k | 244 (10k) | 354 (10k) | 465 (10k) | 473 (15k) | 534 (20k) | 583 (31k) | 632 (41k) | 620 (61k) | 628 (82k) |
+| long 8k | 280 (74k) | 409 (74k) | 546 (74k) | 577 (111k) | 638 (147k) | 683 (221k) | 744 (295k) | 722 (442k) | 688 (590k) |
+| xlong 32k | 311 (270k) | 411 (270k) | 708 (270k) | 656 (406k) | 755 (541k) | **791** (811k) | 793 (1081k) | 563 (1622k) | 546 (2163k) |
+| xxlong 100k | – | – | 103 (807k)* | – | **357** (807k) | – | 155 (1614k) | – | 81 (3228k) |
+
+\* xxlong c4 is a cold first-touch outlier (hicache load-in dominates the
+short window); c8 is the clean 100k reference.
+
+Output tok/s per active request / mean TTFT ms:
+
+| tier | c1 | c8 | c12 | c16 | c24 | c32 |
+|---|---|---|---|---|---|---|
+| short | 226 / 181 | 67 / 227 | 34 / 664 | 41 / 472 | 26 / 2699 | 20 / 5066 |
+| medium | 244 / 170 | 67 / 260 | 49 / 327 | 40 / 563 | 26 / 2892 | 20 / 5225 |
+| long | 280 / 245 | 80 / 295 | 57 / 333 | 47 / 662 | 30 / 8941 | 22 / 18135 |
+| xlong | 311 / 639 | 94 / 498 | 66 / 719 | 50 / 1625 | 23 / 12669 | 17 / 22926 |
+| xxlong | – | 45 / 2382 | – | 10 / 16730 | – | 3 / 77452 |
+
+Spec accept length rises with context size (2.45 short-c1 → 3.26 xlong) and
+is FLAT across concurrency — adaptive-spec v2 holds; per-request slowdown at
+high c is decode-batching, not speculation.
+
+Sweet-spot verdict:
+
+1. Aggregate plateaus at c8–c12 and regresses past the admission cap: xlong
+   +0 % c12→c16 then **−29 %** at c24/c32; short/medium dead-flat c16→c32.
+   Above 16 running requests extra concurrency buys nothing, it only queues.
+2. Per-request speed decays hyperbolically: ~230–310 @c1, 67–95 @c8,
+   40–50 @c16, 17–22 @c32. c24/c32 are unusable interactively.
+3. KV dilution matches the "few big sessions" preference: 778 816-token pool
+   ≈ 97 k usable context/session at running=8 vs ≈48 k at 16, ≈24 k at 32.
+4. xxlong 100k survives c32 (NRestarts=0): the pool admits ~7 concurrent
+   100k sessions and queues the rest — the June crash is now a designed
+   property. Useful 100k throughput exists (357 tok/s at c8) but big-parallel
+   × big-context is this engine's real ceiling.
+5. Confirms the operating recommendation: keep `max_running_requests=16` as
+   engine valve, gateway admits ≤8 (≤12 for batch/long jobs), queues the
+   rest; MTP/draft stays on.
+
 Pennyroyal's adaptive-spec suite (same dir, `pennyroyal-adaptive-run2/`)
 shows the width policy working as designed: high-reuse workloads at c1
 accept ~6.8 draft tokens (W8/steps=7 engaged, 403 tok/s), low-reuse drops to
@@ -383,4 +439,7 @@ free-VRAM rule; steady state 9877/12282 MiB used, 2×98304-token slots, zero
 CPU layers. Median-of-3 (`bench-results/kit-20261012-1455.jsonl`,
 `scripts/bench_kit.py`): c1 48–50 tok/s, c2 77–81 tok/s aggregate — matching
 the ~60 tok/s bandwidth ceiling estimate and giving the two-admin/implementer
-setup its intended speed.
+setup its intended speed. Streaming tool calls additionally required
+`--jinja` (the built-in fallback template emitted empty `arguments` deltas,
+breaking Copilot/OpenCode tool use); with the GGUF ChatML template enabled,
+streamed calls parse cleanly and c1/c2 stay at 201/312 tok/s aggregate.

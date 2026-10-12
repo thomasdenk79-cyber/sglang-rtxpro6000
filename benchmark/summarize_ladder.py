@@ -23,7 +23,7 @@ def load(paths):
             name = os.path.basename(f)[:-5]
             try:
                 with open(f) as fh:
-                    runs = json.load(fh)
+                    runs = json.loads(fh.readline())
             except Exception:
                 continue
             if isinstance(runs, dict):

@@ -1,0 +1,4 @@
+start: 2026-10-12T16:15:04+02:00
+config: fraction=0.947 kv=fp8_e4m3 pool=778816 chunk=8192 running=16 queued=32 slots=67 graphcap=16
+prompts = max(2*c,12); xxlong prompts = max(c,8)
+note: overlapped with a second ladder launch 16:44-16:56; treat xlong c24/c32 and xxlong rows as contaminated, everything else clean

@@ -283,3 +283,15 @@ CPU media preprocessing, and local API port `127.0.0.1:8001`.
   inert until a proxy reload — operator decision pending, reload must avoid
   killing live agent traffic (this workstation routes its own agents through
   it).
+
+## Ladder v2 addendum (evening)
+
+Saturated grid c1–c32 incl. 100k tier (prompt counts scale with c — v1's
+fixed counts under-saturated high-c long/xlong rows). Result tree
+`bench-results/ladder-merged`; full tables + sweet-spot analysis in
+`docs/local-deployment.md`. Headline: aggregate plateaus c8–c12, xlong
+regresses −29 % beyond the cap (TTFT 12–23 s), per-request 67–95 tok/s @c8
+vs 17–22 @c32, xxlong-100k survives c32 (NRestarts=0 — queue cap + pool
+admission convert the flood into 7-wide concurrency). Spec accept length
+flat across c (adaptive-spec v2 verified). Gateway policy recommendation:
+admit ≤8 interactive / ≤12 batch, queue the rest, MTP stays on.
