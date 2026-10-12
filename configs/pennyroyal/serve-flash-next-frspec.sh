@@ -88,7 +88,7 @@ KV_DTYPE=fp8_e4m3
 MAMBA_SSM_DTYPE=bfloat16
 MAMBA_CONV_DTYPE=bfloat16
 MAMBA_TRACK_INTERVAL=64
-PREFILL_CHUNK_SIZE=4096
+PREFILL_CHUNK_SIZE=8192
 for path in "$SGLANG_EXE" "$PYTHON"; do
   [[ -x "$path" ]] || { echo "Required executable missing: $path" >&2; exit 1; }
 done
@@ -252,6 +252,7 @@ launch_args=(serve \
   --chunked-prefill-size "$PREFILL_CHUNK_SIZE" \
   --mamba-radix-cache-strategy extra_buffer --mamba-ssm-dtype "$MAMBA_SSM_DTYPE" \
   --max-mamba-cache-size "$MAX_MAMBA_CACHE_SIZE" --gdn-mtp-cache-mode none \
+  --cuda-graph-max-bs-decode 8 \
   --linear-attn-decode-backend flashinfer --linear-attn-prefill-backend flashinfer \
   --mamba-track-interval "$MAMBA_TRACK_INTERVAL" \
   --enable-hierarchical-cache --hicache-size "$HICACHE_SIZE_GB" --hicache-host-memory-mode cache \
