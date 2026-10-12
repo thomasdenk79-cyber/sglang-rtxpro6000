@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
-IMAGE=${PENNYROYAL_IMAGE:-localhost/pennyroyal:john-repair-5d33142c1}
+IMAGE=${PENNYROYAL_IMAGE:-ghcr.io/jpezzulli/sglang-rtxpro6000@sha256:fd26ba8d3ce001bb6e4b865236e1b69f7f790b94fb7fe1c32aa81799f4fe338c}
 MODEL=${PENNYROYAL_MODEL:-/srv/ai/models/RadixArk-Qwen3.8-Flash-Next-NVFP4}
 GPU_UUID=${PENNYROYAL_GPU_UUID:-GPU-780d3589-9811-40ec-db66-93a9146697f3}
 UNIT=${PENNYROYAL_UNIT:-pennyroyal.service}

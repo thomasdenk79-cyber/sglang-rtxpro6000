@@ -6,8 +6,7 @@ usage() {
 Usage: llmlogs [options] [pod-or-unit ...]
 
 Show journalctl logs for Podman containers and Quadlet units.
-With no names, the user journal is filtered for container-related entries,
-including stopped/failed containers and units.
+With no names, show only the Pennyroyal LLM container and LiteLLM entries.
 
 Options:
   -f, --follow       Follow logs (journalctl -f)
@@ -44,11 +43,18 @@ export SYSTEMD_COLORS=1
 journal_args=(-n "$lines" --no-pager -o short-precise)
 (( follow )) && journal_args+=(-f)
 
-# With no explicit target, search the complete user journal instead of only
-# currently running pods. This includes stopped/failed containers and the
-# systemd/Quadlet processes that emitted their container logs.
+# With no explicit target, read the two LLM sources directly instead of the
+# broad Podman event journal. This avoids health-status and container-event
+# noise while retaining LiteLLM logs from stopped containers.
 if ((${#targets[@]} == 0 && ${#units[@]} == 0)); then
-  journalctl --user -g 'podman|conmon|container|PODMAN_|pennyroyal' "${journal_args[@]}" || true
+  echo '===== Pennyroyal ====='
+  journalctl --user -u pennyroyal.service "${journal_args[@]}" || true
+  echo '===== LiteLLM ====='
+  if (( follow )); then
+    podman logs --timestamps --tail "$lines" -f litellm 2>&1 || true
+  else
+    podman logs --timestamps --tail "$lines" litellm 2>&1 || true
+  fi
   exit 0
 fi
 

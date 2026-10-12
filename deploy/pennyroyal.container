@@ -5,7 +5,7 @@ Wants=network-online.target
 ConditionPathExists=/srv/ai/models/RadixArk-Qwen3.8-Flash-Next-NVFP4/config.json
 
 [Container]
-Image=localhost/pennyroyal:john-repair-5d33142c1
+Image=ghcr.io/jpezzulli/sglang-rtxpro6000@sha256:fd26ba8d3ce001bb6e4b865236e1b69f7f790b94fb7fe1c32aa81799f4fe338c
 ContainerName=pennyroyal
 Network=llm-inference.network
 User=1000:1000
@@ -24,9 +24,6 @@ Environment=CACHE_BASE=/cache
 Environment=NIXL_STORAGE_BASE=/nixl
 Environment=NIXL_CONFIG=/config/nixl-posix-frspec.toml
 Environment=PENNY_PLE_BACKEND=ram
-Environment=PENNY_HICACHE_SIZE_GB=12
-Environment=MAX_RUNNING_REQUESTS=4
-Environment=MAX_MAMBA_CACHE_SIZE=24
 Environment=TP_SIZE=1
 Environment=SGLANG_MM_PREPROCESS_DEVICE=cpu
 Environment=SGLANG_FORWARD_UNKNOWN_TOOLS=true
@@ -36,13 +33,14 @@ Environment=CUDA_VISIBLE_DEVICES=0
 Exec=exec bash /config/start-flash-next-frspec.sh
 HealthCmd=python3 -c "import urllib.request; raise SystemExit(0 if urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=8).status == 200 else 1)"
 HealthInterval=30s
-HealthTimeout=15s
-HealthRetries=4
-HealthStartPeriod=1800s
+HealthTimeout=30s
+HealthRetries=6
+HealthStartPeriod=900s
 
 [Service]
-Restart=on-failure
-RestartSec=30
+# SGLang can exit with status 0 after a fatal scheduler OOM; always recover.
+Restart=always
+RestartSec=60
 TimeoutStartSec=3600
 TimeoutStopSec=180
 
