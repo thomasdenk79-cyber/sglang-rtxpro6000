@@ -270,3 +270,16 @@ CPU media preprocessing, and local API port `127.0.0.1:8001`.
   `/home/z000g9hu/work/sglang-rtxpro6000`; its Quadlet now references the
   verified remote image digest. Re-run the recovery sequence above after the
   eGPU is connected or the host has been rebooted.
+
+## Afternoon follow-up — 2026-10-12 (post-ladder)
+
+- c16 profile deployed and validated: queue cap 32, slots 67, fraction 0.947,
+  graph cap 16. Full concurrency ladder + cold ramps passed with NRestarts=0,
+  zero retractions, peak pool occupancy 0.74. Numbers, operating-envelope
+  recommendation (engine 16 / gateway policy 8–12) and the fallback-routing
+  best practices live in `docs/local-deployment.md`; commits `feafb6329`,
+  `b47d7dc5e`, `453e86d44`. Not pushed.
+- LiteLLM gateway edits (gate 18, cooldowns, fallback order) are written but
+  inert until a proxy reload — operator decision pending, reload must avoid
+  killing live agent traffic (this workstation routes its own agents through
+  it).
