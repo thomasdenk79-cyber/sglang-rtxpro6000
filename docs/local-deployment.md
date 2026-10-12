@@ -318,3 +318,29 @@ local tasks (formatting, small edits, "simple implementer" agent roles), and
 bonsai does not. If none of those justify keeping a patched, tuned,
 benchmarked second stack, retiring it is on the table; the decision belongs to
 the same post-benchmark review as the gateway rollout.
+
+### Measured ladder results — c16 profile (2026-10-12, `bench-results/c16-ladder-20261012-142032`)
+
+31 runs (short/medium/long/xlong × c1–c16) + cold ramp 32k/65k/100k, all
+DONE, service NRestarts=0, peak `full token usage` 0.74, zero retractions.
+The previous crash trigger (cold 32k+ prefills) passes cleanly.
+
+| c | ITL (avg) | tok/s per request | aggregate out t/s (med/long/xlong) | TTFT avg |
+|---|-----------|-------------------|--------------------------------------|----------|
+| 1 | 1.9–2.5 ms | ~400–520 | 256 / 267 / 258 | 0.13–1.5 s |
+| 4 | 4.7 ms | ~130–175 | 494 / 585 / **706** (xlong peak) | 0.15–0.23 s |
+| 8 | 8.4–8.5 ms | ~118 | 457 / 606 / 608 | 0.25–0.74 s |
+| 12 | 11.4–12.1 ms | ~45–53 | 593 / 638 / 535 (xlong regresses) | 0.28–1.35 s |
+| 16 | 13.0–13.4 ms | ~37–45 | 594 / **719** / 603 | 0.59–1.83 s |
+
+Findings: no cliff up to c16 (near-linear ITL scaling); aggregate gains beyond
+c8 are small (+15–20 %) while xlong output regresses at c12+ (prefill queueing
++ pool occupancy 0.74) and TTFT jitter doubles. The `short` tier runs at c3/c6
+are contaminated by supervising-session traffic sharing the endpoint and
+should not be over-read. Operating recommendation: engine `running=16`
+stays as the measured safe envelope (VRAM pre-funded, validated by this
+ladder); the quality *policy* rides the LiteLLM gate at 8–12 in-flight with
+overflow falling through — interactive knee ~c8, throughput plateau c12–c16.
+Follow-up owed: bonsai's 10–20 tok/s on the RTX 3500 Ada is anomalous for a
+fully-resident 4–6 GB model (~60 tok/s bandwidth ceiling) and needs a
+llama.cpp flag/quant/context audit before any keep-or-retire decision.
