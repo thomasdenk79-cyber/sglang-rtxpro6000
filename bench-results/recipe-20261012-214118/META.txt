@@ -1,0 +1,5 @@
+start: 2026-10-12T21:41:18+02:00
+recipe: c8 profile fraction=0.978 kv=fp8_e4m3 pool=1138112 chunk=8192
+        running=8 queued=16 slots=35 graphcap=8 hicache=32GB+nixl adaptive-spec on
+tiers: 512/256 2048/512 8192/1024 32768/1024 129024/1024 400384/1024
+caveat: shared endpoint, supervising agent traffic may interleave
