@@ -24,6 +24,12 @@ Environment=CACHE_BASE=/cache
 Environment=NIXL_STORAGE_BASE=/nixl
 Environment=NIXL_CONFIG=/config/nixl-posix-frspec.toml
 Environment=PENNY_PLE_BACKEND=ram
+# c16 benchmark profile: 16 admitted requests, 67 recurrent-state slots,
+# and reduced static fraction to leave room for the larger Mamba pool.
+Environment=MAX_RUNNING_REQUESTS=16
+Environment=MAX_MAMBA_CACHE_SIZE=67
+Environment=MAX_QUEUED_REQUESTS=32
+Environment=PENNY_MEM_FRACTION=0.947
 Environment=TP_SIZE=1
 Environment=SGLANG_MM_PREPROCESS_DEVICE=cpu
 Environment=SGLANG_FORWARD_UNKNOWN_TOOLS=true

@@ -245,14 +245,14 @@ launch_args=(serve \
   --served-model-name pennyroyal \
   --host 0.0.0.0 --port 8001 --tp "$TP_SIZE" \
   --dtype "$COMPUTE_DTYPE" --quantization modelopt_fp4 --kv-cache-dtype "$KV_DTYPE" \
-  --mem-fraction-static 0.981 \
+  --mem-fraction-static "${PENNY_MEM_FRACTION:-0.981}" \
   "${TOKEN_CAP_ARGS[@]}" --warmups=structured_output \
   --context-length "$CONTEXT_LENGTH" --json-model-override-args "$TARGET_OVERRIDES" \
-  --page-size "$PAGE_SIZE" --max-running-requests "$MAX_RUNNING_REQUESTS" --sleep-on-idle \
+  --page-size "$PAGE_SIZE" --max-running-requests "$MAX_RUNNING_REQUESTS" --max-queued-requests "$MAX_QUEUED_REQUESTS" --sleep-on-idle \
   --chunked-prefill-size "$PREFILL_CHUNK_SIZE" \
   --mamba-radix-cache-strategy extra_buffer --mamba-ssm-dtype "$MAMBA_SSM_DTYPE" \
   --max-mamba-cache-size "$MAX_MAMBA_CACHE_SIZE" --gdn-mtp-cache-mode none \
-  --cuda-graph-max-bs-decode 8 \
+  --cuda-graph-max-bs-decode "${CUDA_GRAPH_MAX_BS_DECODE:-$MAX_RUNNING_REQUESTS}" \
   --linear-attn-decode-backend flashinfer --linear-attn-prefill-backend flashinfer \
   --mamba-track-interval "$MAMBA_TRACK_INTERVAL" \
   --enable-hierarchical-cache --hicache-size "$HICACHE_SIZE_GB" --hicache-host-memory-mode cache \
