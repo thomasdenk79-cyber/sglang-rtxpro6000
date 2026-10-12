@@ -443,3 +443,34 @@ setup its intended speed. Streaming tool calls additionally required
 `--jinja` (the built-in fallback template emitted empty `arguments` deltas,
 breaking Copilot/OpenCode tool use); with the GGUF ChatML template enabled,
 streamed calls parse cleanly and c1/c2 stay at 201/312 tok/s aggregate.
+
+## c8 profile with mem-fraction 0.978 (2026-10-12 evening, live)
+
+Following the ladder-v2 sweet-spot verdict, the engine moved from the c16
+profile to the c8 profile: `max_running_requests=8`, `max_mamba_cache_size=35`
+(=8×4+3), `max_queued_requests=16`, decode graphs capped at bs8, and — at the
+operator's request — `mem_fraction_static` raised from 0.947 to **0.978**.
+
+Measured outcome (`max_total_num_tokens=1138112`, `available_gpu_mem=3.14 GB`):
+
+| metric | c16 profile (0.947) | c8 profile (0.978) |
+|---|---|---|
+| KV pool | 778 816 tok (≈48 k/session @16) | **1 138 112 tok (≈142 k/session @8)** |
+| post-init free VRAM | 5.10 GB | 3.14 GB |
+| long c8 / xlong c8 smoke | 638 / 755 out tok/s | 642 / 744 out tok/s |
+| xlong ITL median | 13.4 ms (@c16) | 8.4 ms |
+| xlong TTFT p90 | 1.6 s | 1.25 s |
+
+Fraction ceiling evidence: at **0.981** the engine started but Triton
+post-load warnings showed `free device mem: 0.24 GiB` (the June-OOM failure
+mode needs ~1.4 GiB of slack); at **0.978** the same warnings show 0.65 GiB
+and post-init free is 3.14 GB. **0.978 is the measured ceiling; do not go
+higher on this build.** Rollback: launcher defaults are env-overridable
+(`PENNY_MEM_FRACTION`, `MAX_RUNNING_REQUESTS`, `MAX_MAMBA_CACHE_SIZE`,
+`MAX_QUEUED_REQUESTS`); previous launcher saved at
+`/tmp/start-flash.bak-c16`.
+
+Restart procedure note for agents: restart via systemd, then poll
+`curl /health` in a sleep loop inside one tool call — a single-shot health
+check right after restart always fails because weight load alone takes
+~170 s and kernel warmup longer.
