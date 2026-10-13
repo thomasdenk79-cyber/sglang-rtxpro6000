@@ -1,0 +1,3 @@
+start: 2026-10-14T00:53:30+02:00
+config: ple=nvme (override backend.py _STAGING_MIB=32) v3.0.1 mem_fraction=0.978 max_running=8 mamba=35 queued=16 chunk=8192 graph_bs=8 hicache=32GB+nixl
+matrix: same as A up to long_c16 + ramp32k/65k; long_c32/xlong omitted (A-OOM point)
