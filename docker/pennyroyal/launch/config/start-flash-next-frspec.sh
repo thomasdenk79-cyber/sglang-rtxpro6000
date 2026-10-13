@@ -91,6 +91,9 @@ source "$IMAGE_CONFIGS/chat-template.sh"
 source "$IMAGE_CONFIGS/request-capacity.sh"
 source "$IMAGE_CONFIGS/reasoning-effort.sh"
 source "$IMAGE_CONFIGS/tp-devices.sh"
+# Name the release and its source before any preflight step can fail.
+source "$IMAGE_CONFIGS/startup-summary.sh"
+pennyroyal_version_banner
 
 # Pin the qualified map and tokenizer: a different ID mapping changes draft
 # proposals and must never silently reuse this representation's cache namespace.
@@ -179,6 +182,11 @@ export TORCH_HOME="$CACHE_BASE/torch" TORCHINDUCTOR_CACHE_DIR="$CACHE_BASE/torch
 export TRITON_CACHE_DIR="$CACHE_BASE/triton" CUDA_CACHE_PATH="$CACHE_BASE/cuda"
 export FLASHINFER_WORKSPACE_BASE="$CACHE_BASE/flashinfer"
 export SGLANG_CACHE_DIR="$CACHE_BASE/sglang" SGLANG_JIT_CACHE_DIR="$CACHE_BASE/sglang/jit"
+# TileLang's compiled kernels belong with the other durable caches: a container
+# UID with no passwd entry gets HOME=/, so TileLang's ~ default lands on an
+# unwritable /.tilelang and the import aborts (#65). An explicit value wins.
+export TILELANG_CACHE_DIR="${TILELANG_CACHE_DIR:-$CACHE_BASE/tilelang}"
+mkdir -p "$TILELANG_CACHE_DIR"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export SGLANG_NUMA_BIND_V2=false SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1
 export SGLANG_MAMBA_CONV_DTYPE="$MAMBA_CONV_DTYPE"
@@ -311,6 +319,5 @@ launch_args=(serve \
   --speculative-adaptive --speculative-adaptive-config "$ADAPTIVE_CONFIG" \
   --speculative-draft-model-quantization unquant \
   --speculative-token-map "$TOKEN_MAP" --watchdog-timeout 1800)
-source "$IMAGE_CONFIGS/startup-summary.sh"
 pennyroyal_startup_summary "${launch_args[@]}"
 exec "$SGLANG_EXE" "${launch_args[@]}"

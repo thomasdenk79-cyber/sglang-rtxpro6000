@@ -11,7 +11,9 @@ Run long conversations, coding agents, and tool-heavy workflows on your own
 hardware. Penny Royal is an SGLang-derived runtime tuned for **NVIDIA RTX PRO
 6000 Blackwell (SM120), with one card (TP1) or two (TP2)**.
 
-**524K context · FR-Spec + adaptive MTP · Persistent conversation cache**
+**Persistent conversation caching is at the heart of Penny.** HiCache and NIXL
+keep reusable state in system RAM and on NVMe, beyond what fits on the GPU,
+so long-running sessions can pick up from cached history.
 
 > **Tom evaluation branch:** this checkout is an experimental merged branch
 > for local RTX PRO 6000 testing. It combines the Penny Royal 3.0 baseline,
@@ -19,8 +21,45 @@ hardware. Penny Royal is an SGLang-derived runtime tuned for **NVIDIA RTX PRO
 > not a production release. OOM, GPU-driver and eGPU/PCIe issues remain open;
 > validate memory use and device stability before long runs.
 
-[Get started](#build-and-launch) · [Performance](#performance) ·
-[3.0 release notes](RELEASE_NOTES_3.0.md) · [Community results](COMMUNITY-RESULTS.md)
+**524K context · HiCache + NIXL · FR-Spec + adaptive MTP**
+
+[Get started](#build-and-launch) · [Conversation cache](#hicache-and-nixl) ·
+[Performance](#performance) ·
+[3.0.1 release notes](RELEASE_NOTES_3.0.1.md) · [Community results](COMMUNITY-RESULTS.md)
+
+**3.0.1 maintenance update:** fixes WSL2 RAM PLE, persistent container kernel
+caching and NVMe PLE startup, and prints the release version in startup logs.
+
+<a id="hicache-and-nixl"></a>
+
+## Built for long conversations and agents
+
+Every tool call adds another turn. A coding session can build up hundreds of
+thousands of tokens of history, and processing that history again costs time.
+
+Penny keeps reusable conversation state across three layers:
+
+| Where | What it does |
+|---|---|
+| **GPU memory** | Keeps active conversations ready for the next turn. |
+| **System RAM — HiCache** | Holds reusable state beyond what fits on the GPU and brings it back when needed. |
+| **NVMe storage — NIXL** | Keeps cached state on disk so matching conversation history can be restored, including after a server restart with the same configuration. |
+
+When your client sends the next turn, Penny reuses the matching cached history
+and processes the new material.
+
+Qwen's hybrid models need their recurrent state restored alongside the
+attention cache. Penny handles that complete state, including Flash-Next's
+additional PLE and QSA state, so restored conversations can continue correctly.
+
+Penny restored a **490K-token conversation** from cache and processed just
+**five new tokens**, skipping almost half a million tokens of repeated prefill.
+
+Both model profiles use this hierarchy. **NIXL disk caching is on by default**;
+you can disable it while keeping GPU and RAM caching. The
+[run guide](RUN.md#choose-hicache-ram-size) covers sizing and setup, and
+[memory and persistence](MEMORY-AND-PERSISTENCE.md#hicache-and-nixl) explains
+how the state is stored and restored.
 
 ## What's new in 3.0
 
@@ -48,7 +87,7 @@ See the [release notes](RELEASE_NOTES_3.0.md) for the full change list.
 ## Two model profiles
 
 Both profiles support **524,288-token context**, tool calling, reasoning,
-images, RAM prefix caching, and optional NIXL disk caching.
+images, HiCache RAM prefix caching, and optional NIXL disk caching.
 
 | Model | Weights | Speculative decoding | Checkpoints |
 |---|---|---|---|
@@ -243,11 +282,12 @@ together, with plenty of back and forth over what was actually worth keeping.
 |---|---|
 | Install or upgrade | [Native build](BUILD.md) · [Container](docker/pennyroyal/README.md) |
 | Choose launch, cache, GPU, and context settings | [Run guide](RUN.md) |
+| Understand conversation caching | [HiCache and NIXL](#hicache-and-nixl) · [Memory and persistence](MEMORY-AND-PERSISTENCE.md#hicache-and-nixl) |
 | Try guided setup | [Beta configurator](CONFIGURE.md) |
 | Understand the FP8 and SSD options | [Online FP8](FP8.md) · [NVMe PLE](NVME-PLE.md) |
 | See measurements | [Results and history](RESULTS.md) · [Community reports](COMMUNITY-RESULTS.md) |
 | Read the implementation details | [Backends](BACKENDS.md) · [Memory and persistence](MEMORY-AND-PERSISTENCE.md) |
-| Check changes and source lineage | [3.0 notes](RELEASE_NOTES_3.0.md) · [Machine-readable notes](release-3.0.json) · [History](CHANGES.md) · [Provenance](PROVENANCE.md) |
+| Check changes and source lineage | [3.0.1 notes](RELEASE_NOTES_3.0.1.md) · [Machine-readable notes](release-3.0.1.json) · [History](CHANGES.md) · [Provenance](PROVENANCE.md) |
 | Check known issues | [Limitations](LIMITATIONS.md) |
 | Use an AI assistant for setup | [llms.txt](llms.txt) |
 
@@ -287,7 +327,7 @@ components retain their own licenses.
 <a id="scope-and-limitations"></a>
 <a id="documentation-map"></a>
 
-[Current release notes](RELEASE_NOTES_3.0.md) · [Benchmark history](RESULTS.md) ·
+[Current release notes](RELEASE_NOTES_3.0.1.md) · [Benchmark history](RESULTS.md) ·
 [Configuration reference](BACKENDS.md) · [Known issues](LIMITATIONS.md)
 
 <!-- Compatibility anchors for earlier versions of this guide. -->

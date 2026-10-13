@@ -1,11 +1,11 @@
 [Unit]
-Description=Pennyroyal Qwen3.8 Flash-Next v3.0.0 (Podman, RTX PRO 6000 Blackwell)
+Description=Pennyroyal Qwen3.8 Flash-Next v3.0.1 (Podman, RTX PRO 6000 Blackwell)
 After=network-online.target
 Wants=network-online.target
 ConditionPathExists=/srv/ai/models/RadixArk-Qwen3.8-Flash-Next-NVFP4/config.json
 
 [Container]
-Image=ghcr.io/jpezzulli/sglang-rtxpro6000@sha256:fd26ba8d3ce001bb6e4b865236e1b69f7f790b94fb7fe1c32aa81799f4fe338c
+Image=ghcr.io/jpezzulli/sglang-rtxpro6000@sha256:25400f5609a67a692a40e8567e4a0e635b619279ab411f2a363b02a06251f2d1
 ContainerName=pennyroyal
 Network=llm-inference.network
 User=1000:1000

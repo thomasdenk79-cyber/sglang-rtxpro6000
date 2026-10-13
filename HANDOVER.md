@@ -41,6 +41,14 @@ SGLang's zero-exit failure path (observed 2026-10-13 22:06: scheduler OOM ->
 SIGQUIT -> podman exit 0) is only recovered by `Restart=always`; do not
 downgrade to `on-failure`.
 
+Since 2026-10-13 the user watchdog (`pennyroyal-watchdog.timer` ->
+`~/.local/bin/pennyroyal-watchdog.sh`) also recovers an *inactive* unit instead
+of assuming maintenance: an operator stop must be marked with
+`touch /run/user/1000/pennyroyal-watchdog.last.maintenance` (remove it when the
+service should run again). The container image pin moved from v3.0.0
+(`fd26ba8d`) to v3.0.1 (`25400f56`) for the PLE gather fix; the preflight and
+the Quadlet carry the same digest.
+
 The 13:38 CEST restart loaded the model and allocated KV pools using the new
 settings (`max_total_num_tokens=1,159,552`, `chunked_prefill_size=8192`,
 `available_gpu_mem=2.85 GB` after allocation). The API was still initializing

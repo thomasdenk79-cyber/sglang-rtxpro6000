@@ -24,6 +24,7 @@ LAUNCH = REPO / "docker" / "pennyroyal" / "launch"
 ENTRYPOINT = REPO / "docker" / "pennyroyal" / "entrypoint.sh"
 CONFIGS = LAUNCH / "config"
 RECIPES = REPO / "configs" / "pennyroyal"
+PENNY_VERSION = (RECIPES / "pennyroyal.version").read_text().strip()
 # Never inherited from the developer's shell: these are exactly what each test
 # decides, so a stray export cannot change the expected launch.
 CONTROLLED = (
@@ -51,6 +52,7 @@ CONTROLLED = (
     "SGLANG_MM_PREPROCESS_DEVICE",
     "SGLANG_HICACHE_NIXL_BACKEND_STORAGE_DIR",
     "FLASHINFER_GDN_FP16_ACCUM_MMA",
+    "TILELANG_CACHE_DIR",
     "CUDA_VISIBLE_DEVICES",
     "FAKE_CUDA_DEVICES",
 )
@@ -455,6 +457,7 @@ def image_root(tmp_path: Path) -> tuple[Path, Path, Path]:
         'for argument in "$@"; do printf "%s\\n" "$argument" >> "$SGLANG_CAPTURE"; done\n'
         'printf "namespace=%s\\n" "${SGLANG_HICACHE_NIXL_BACKEND_STORAGE_DIR:-unset}" >> "$SGLANG_ENV_CAPTURE"\n'
         'printf "cache=%s\\n" "${SGLANG_CACHE_DIR:-unset}" >> "$SGLANG_ENV_CAPTURE"\n'
+        'printf "tilelang=%s\\n" "${TILELANG_CACHE_DIR:-unset}" >> "$SGLANG_ENV_CAPTURE"\n'
         'printf "cuda=%s\\n" "${CUDA_VISIBLE_DEVICES:-unset}" >> "$SGLANG_ENV_CAPTURE"\n'
         # The settings the launcher can forward with -e, recorded as the server
         # actually receives them: a mounted script that exports a fixed value
@@ -626,7 +629,7 @@ def test_mounted_startup_reaches_the_server_unchanged(tmp_path):
         ("--hicache-size", "32"),
         ("--hicache-storage-backend", "nixl"),
         ("--speculative-algorithm", "NEXTN"),
-        ("--speculative-num-draft-tokens", "4"),
+        ("--speculative-num-draft-tokens", "8"),
     ):
         assert argv_after(argv, flag) == value, flag
     assert "--ple-offload-embedding" in argv  # RAM PLE stays on
@@ -652,6 +655,60 @@ def test_mounted_startup_reaches_the_server_unchanged(tmp_path):
     assert namespace.is_dir() and str(namespace).startswith(str(nixl))
     assert (namespace / "namespace-identity.json").is_file()
     assert server_env["cache"] == str(cache / "sglang")
+
+
+def test_tilelang_kernels_stay_on_the_durable_mount(tmp_path):
+    # An arbitrary --user gets HOME=/, so a launch path that leaves the TileLang
+    # cache to ~ aborts at its first import (#65); the documented default UID
+    # keeps the kernels in the disposable image layer instead. Checked in the
+    # launched process's own environment, for both profiles and both routes, and
+    # an explicit operator path stays the operator's.
+    for startup, recipe in (
+        ("start-flash-next.sh", RECIPES / "serve-flash-next.sh"),
+        ("start-27b-dflash2.sh", RECIPES / "serve-qwen38-27b-dflash2.sh"),
+    ):
+        config = prepared_config(tmp_path, startup)
+        for path, via_entrypoint in ((config / startup, True), (recipe, False)):
+            result, _, server_env, (_, cache, _) = launch(
+                tmp_path, path, through_entrypoint=via_entrypoint
+            )
+            assert result.returncode == 0, (path, result.stderr)
+            assert server_env["tilelang"] == str(cache / "tilelang"), path
+            assert (cache / "tilelang").is_dir(), path
+        chosen = tmp_path / "operator kernels"
+        result, _, server_env, _ = launch(
+            tmp_path, config / startup, env={"TILELANG_CACHE_DIR": str(chosen)}
+        )
+        assert result.returncode == 0, result.stderr
+        assert server_env["tilelang"] == str(chosen), server_env
+        assert chosen.is_dir()
+
+
+def test_startup_names_the_release_once_on_every_route(tmp_path):
+    # Where an operator looks when a launch dies in preflight: the release and
+    # its source, once, before any preflight step, on the mounted container route
+    # and the native recipe route, for both model profiles. The stand-in image
+    # root is a tagless single-commit checkout, like the published image.
+    for startup, recipe in (
+        ("start-flash-next.sh", RECIPES / "serve-flash-next.sh"),
+        ("start-27b-dflash2.sh", RECIPES / "serve-qwen38-27b-dflash2.sh"),
+    ):
+        config = prepared_config(tmp_path, startup)
+        for path, via_entrypoint in ((config / startup, True), (recipe, False)):
+            result, _, _, (root, _, _) = launch(
+                tmp_path, path, through_entrypoint=via_entrypoint
+            )
+            assert result.returncode == 0, (path, result.stderr)
+            revision = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", "--short=10", "HEAD"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            banner = f"Penny Royal {PENNY_VERSION} | source {revision}"
+            lines = result.stdout.splitlines()
+            assert lines[0] == banner, (path, lines[:3])
+            assert lines.count(banner) == 1, (path, result.stdout)
 
 
 def test_mounted_startup_27b_keeps_its_profile(tmp_path):

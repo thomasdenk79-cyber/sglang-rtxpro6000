@@ -29,7 +29,7 @@ if [[ "$GPU_CHECK_ONLY" == 1 ]]; then
 fi
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
-IMAGE=${PENNYROYAL_IMAGE:-ghcr.io/jpezzulli/sglang-rtxpro6000@sha256:fd26ba8d3ce001bb6e4b865236e1b69f7f790b94fb7fe1c32aa81799f4fe338c}
+IMAGE=${PENNYROYAL_IMAGE:-ghcr.io/jpezzulli/sglang-rtxpro6000@sha256:25400f5609a67a692a40e8567e4a0e635b619279ab411f2a363b02a06251f2d1}
 MODEL=${PENNYROYAL_MODEL:-/srv/ai/models/RadixArk-Qwen3.8-Flash-Next-NVFP4}
 UNIT=${PENNYROYAL_UNIT:-pennyroyal.service}
 QUADLET=${PENNYROYAL_QUADLET:-$HOME/.config/containers/systemd/pennyroyal.container}

@@ -47,6 +47,9 @@ fi
 source "$SCRIPT_DIR/chat-template.sh"
 source "$SCRIPT_DIR/reasoning-effort.sh"
 source "$SCRIPT_DIR/tp-devices.sh"
+# Name the release and its source before any preflight step can fail.
+source "$SCRIPT_DIR/startup-summary.sh"
+pennyroyal_version_banner
 
 CONTEXT_LENGTH=524288
 PAGE_SIZE=64
@@ -96,6 +99,11 @@ export TORCH_HOME="$CACHE_BASE/torch" TORCHINDUCTOR_CACHE_DIR="$CACHE_BASE/torch
 export TRITON_CACHE_DIR="$CACHE_BASE/triton" CUDA_CACHE_PATH="$CACHE_BASE/cuda"
 export FLASHINFER_WORKSPACE_BASE="$CACHE_BASE/flashinfer"
 export SGLANG_CACHE_DIR="$CACHE_BASE/sglang" SGLANG_JIT_CACHE_DIR="$CACHE_BASE/sglang/jit"
+# TileLang's compiled kernels belong with the other durable caches: a container
+# UID with no passwd entry gets HOME=/, so TileLang's ~ default lands on an
+# unwritable /.tilelang and the import aborts (#65). An explicit value wins.
+export TILELANG_CACHE_DIR="${TILELANG_CACHE_DIR:-$CACHE_BASE/tilelang}"
+mkdir -p "$TILELANG_CACHE_DIR"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export SGLANG_NUMA_BIND_V2=false SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1
 export SGLANG_PREP_IN_CUDA_GRAPH=1 SGLANG_MAMBA_CONV_DTYPE="$MAMBA_CONV_DTYPE"
@@ -184,6 +192,5 @@ launch_args=(serve \
   --speculative-draft-attention-backend flashinfer \
   --speculative-draft-kv-cache-dtype "$DRAFT_KV_DTYPE" \
   --watchdog-timeout 1800)
-source "$SCRIPT_DIR/startup-summary.sh"
 pennyroyal_startup_summary "${launch_args[@]}"
 exec "$SGLANG_EXE" "${launch_args[@]}"
