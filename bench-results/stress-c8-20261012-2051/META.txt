@@ -1,0 +1,36 @@
+stress-c8 benchmark — Pennyroyal operating-envelope + overflow + soak + burst + xxlong
+start: 2026-10-12T20:51 CEST (dir created 20:51, runner launched immediately after)
+
+Engine profile (c8, live, verified via /health + journal at start):
+  model: Qwen (sglang, podman container pennyroyal, GPU1 RTX PRO 6000 96GB)
+  endpoint: http://127.0.0.1:8001
+  mem_fraction_static=0.978
+  max_running_requests=8
+  max_mamba_cache_size=35
+  max_queued_requests=16
+  cuda_graph_max_bs_decode=8
+  chunked_prefill_size=8192
+  KV pool max_total_num_tokens=1,138,112 ; context_len=524,288 ; KV dtype fp8_e4m3
+  hierarchical cache, NIXL storage backend (32 GB host tier)
+  post-init free VRAM 3.14 GB (Triton lazy kernels warned historically at 0.65 GiB free)
+  systemd user unit pennyroyal.service, NRestarts=0 at test start
+
+Tooling: podman exec pennyroyal python3 -m sglang.benchmark.serving ... (random dataset,
+range-ratio 1.0, output-file inside container /tmp, copied out with podman cp).
+
+Plan executed by run_stress.sh (same dir; one bench at a time, NRestarts+journal
+OOM/SIGQUIT check after EVERY case, abort on hit):
+  A ladder  : short 256:256, medium 1024:256, long 8192:1024, xlong 32768:1024
+              C=1,2,4,6,8 ; N=max(2C,12)
+  B guards  : long, xlong at C=12,16,24,32 ; N=max(2C,16)
+  C soak    : xlong C=8 N=48 (6 waves)
+  D burst   : long C=16 N=32 (a) , short C=1 N=1 latency probe, long C=16 N=32 (b)
+  E xxlong  : 100352:512 at C=6 N=6 and C=8 N=8
+
+Caveat: host shares endpoint with live agent sessions (incl. supervising AI);
+short-tier numbers may be slightly contaminated. Sidecar sglang_*.jsonl
+PermissionError in bench logs is a known-harmless artifact.
+
+Repo: /home/z000g9hu/work/sglang-rtxpro6000
+Branch: tom-eval-pennyroyal-3.0-merged-directports-john-experimental @ 46e1d50e2
+No commits, no pushes. Writes restricted to this bench-results subdir.

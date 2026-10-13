@@ -31,6 +31,16 @@ remain unchanged. The Quadlet recovery policy is `Restart=always` with a
 60-second delay; this is a service-level workaround, not a correction to
 SGLang's zero exit status.
 
+The host-side GPU preflight runs as `ExecStartPre=` before Podman creates a
+container. Its lightweight `PENNYROYAL_GPU_CHECK_ONLY=1` mode only queries the
+configured Blackwell UUID via `nvidia-smi`; a missing/unqueryable GPU exits
+nonzero. A failed `ExecStartPre` counts as a failed start, so with
+`Restart=always` and `RestartSec=60` retries occur once per minute without
+creating a container or loading the model. An explicit stop remains stopped.
+SGLang's zero-exit failure path (observed 2026-10-13 22:06: scheduler OOM ->
+SIGQUIT -> podman exit 0) is only recovered by `Restart=always`; do not
+downgrade to `on-failure`.
+
 The 13:38 CEST restart loaded the model and allocated KV pools using the new
 settings (`max_total_num_tokens=1,159,552`, `chunked_prefill_size=8192`,
 `available_gpu_mem=2.85 GB` after allocation). The API was still initializing
@@ -126,6 +136,14 @@ external action; after the session returns, resume verification automatically.
   - `scripts/pennyroyal/host-preflight.sh`
   - `scripts/pennyroyal/llmlogs`
   - `docs/local-deployment.md`
+
+To prevent persistent automatic startup loops while the Blackwell is absent,
+the service remains `inactive` until the operator starts it again. The
+`ExecStartPre=` prerequisite gate prevents Podman from starting, while the
+Quadlet is configured with `Restart=always` and `RestartSec=60`; a failed
+preflight is retried once per minute, with no model/RAM allocation. Explicit
+stop remains effective. `Restart=always` is required because SGLang's internal
+child-failure handler may exit 0 and `on-failure` would not recover it.
 
 ## Current blocker
 

@@ -44,7 +44,11 @@ HealthRetries=6
 HealthStartPeriod=900s
 
 [Service]
-# SGLang can exit with status 0 after a fatal scheduler OOM; always recover.
+ExecStartPre=/usr/bin/env PENNYROYAL_GPU_CHECK_ONLY=1 /home/z000g9hu/work/sglang-rtxpro6000/scripts/pennyroyal/host-preflight.sh
+# SGLang can exit with status 0 after a fatal scheduler OOM; only Restart=always
+# recovers that case. A failed ExecStartPre is also a failure, so the GPU-absent
+# probe still retries at RestartSec cadence, and an explicit systemctl stop
+# still stays stopped under 'always' as well.
 Restart=always
 RestartSec=60
 TimeoutStartSec=3600

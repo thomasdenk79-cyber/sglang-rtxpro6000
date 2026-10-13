@@ -1,0 +1,6 @@
+pre-test snapshot 2026-10-12T20:51:36+02:00
+index, name, memory.used [MiB], memory.total [MiB]
+0, NVIDIA RTX 3500 Ada Generation Laptop GPU, 9963 MiB, 12282 MiB
+1, NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 97015 MiB, 97887 MiB
+0
+Mon 2026-10-12 20:08:33 CEST

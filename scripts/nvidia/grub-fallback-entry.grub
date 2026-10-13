@@ -1,0 +1,16 @@
+#!/bin/sh
+exec tail -n +3 $0
+# NVIDIA fallback: boot the previous kernel after a failed 615 test.
+# This entry is a boot escape hatch; the 580 userspace/kernel packages remain
+# the actual driver rollback path and must be restored with apt if needed.
+menuentry 'KDE neon — NVIDIA fallback kernel 7.0.0-31' {
+    insmod gzio
+    insmod part_gpt
+    insmod cryptodisk
+    insmod luks2
+    insmod btrfs
+    cryptomount -u a164f3f8-d78d-45cb-b054-4d0c6e6159f0
+    search --no-floppy --fs-uuid --set=root f58c0825-2839-489c-8e54-5bf2c6d8f525
+    linux /@/boot/vmlinuz-7.0.0-31-generic root=UUID=f58c0825-2839-489c-8e54-5bf2c6d8f525 rootflags=subvol=@ ro quiet splash nvidia-drm.modeset=0 systemd.unit=multi-user.target
+    initrd /@/boot/initrd.img-7.0.0-31-generic
+}
