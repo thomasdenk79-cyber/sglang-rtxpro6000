@@ -20,11 +20,11 @@ Volume=/srv/ai/models:/models:ro
 Volume=/srv/ai/cache/pennyroyal:/cache:U,Z
 Volume=/srv/ai/nixl/pennyroyal:/nixl:U,Z
 Volume=/srv/ai/ple:/ple:U,Z
+Volume=/srv/ai/ple/overrides/backend.py:/opt/pennyroyal/.ple-nvme/sglang_ssd_stream/backend.py:ro
 Environment=TARGET_MODEL=/models/RadixArk-Qwen3.8-Flash-Next-NVFP4
 Environment=CACHE_BASE=/cache
 Environment=NIXL_STORAGE_BASE=/nixl
 Environment=NIXL_CONFIG=/config/nixl-posix-frspec.toml
-Environment=PENNY_PLE_BACKEND=ram
 # c16 benchmark profile: 16 admitted requests, 67 recurrent-state slots,
 # and reduced static fraction to leave room for the larger Mamba pool.
 Environment=MAX_RUNNING_REQUESTS=8
