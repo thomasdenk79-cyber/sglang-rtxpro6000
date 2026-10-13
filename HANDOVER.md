@@ -250,8 +250,14 @@ performance. Record every run's:
 - TTFT, TPOT/ITL, end-to-end latency, aggregate tok/s
 - raw result path and journal path
 
-The current Quadlet uses RAM PLE, 32 GB HiCache, TP1, four max running requests,
-CPU media preprocessing, and local API port `127.0.0.1:8001`.
+The current Quadlet uses NVMe PLE (prepared overlay /srv/ai/ple/flash-next-ple
+plus the staging override documented in
+bench-results/PLE-AB-20261014.md), 32 GB HiCache, TP1, eight max running
+requests, CPU media preprocessing, and local API port `127.0.0.1:8001`.
+A/B evidence 2026-10-14: equal-or-better throughput at all matched points,
+TTFT consistently lower, long8k/c32 survives where RAM-PLE OOMed, and
+MemAvailable rose ~60 -> ~107 GB. RAM fallback: set PENNY_PLE_BACKEND=ram in
+the recipe; overlay and cache namespaces are separate and nothing is deleted.
 
 ## Pre-restart state — 2026-10-11
 
