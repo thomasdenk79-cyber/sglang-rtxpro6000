@@ -53,13 +53,11 @@ run() { # label inp out n c  (one retry after service auto-restart)
   return 1
 }
 
-# ---- warmup: one small pass per tier, all concurrencies (2 prompts each) ----
+# ---- warmup: sequential single-request cache prime per tier (not concurrency load) ----
 echo "WARMUP start $(date -Is)"; ple_resident >> "$OUT/META.txt"
-for tier in "256 256" "1024 256" "8192 1024" "32768 1024"; do
-  IFS=' ' read -r inp out <<< "$tier"
-  for c in 1 2 3 4 5 6 7 8; do
-    run "warm_${inp}_${c}" "$inp" "$out" "$c" "$c" || echo "WARMUP_SKIP warm_${inp}_${c}"
-  done
+for spec in "short:256:256" "medium:1024:256" "long:8192:1024" "xlong:32768:1024"; do
+  IFS=: read -r tier inp out <<< "$spec"
+  run "warm_${tier}" "$inp" "$out" 1 1 || echo "WARMUP_SKIP warm_${tier}"
 done
 echo "warmup done $(date -Is), settling 60s"; sleep 60; ple_resident >> "$OUT/META.txt"
 free -g | awk 'NR==2{print "MemAvailable_GB="$7 >> "'"$OUT"'/META.txt"}'
