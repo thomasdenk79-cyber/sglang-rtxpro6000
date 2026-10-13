@@ -16,7 +16,7 @@ health() { curl -m 10 -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8001/he
   echo "start: $(date -Is)"
   echo "label: $LABEL"
   echo "config: v3.0.1 mem_fraction=0.978 max_running=8 mamba=35 queued=16 chunk=8192 graph_bs=8 hicache=32GB+nixl"
-  echo "warmup: dummy prompts on every tier/concurrency + PLE table resident check, then sleep 60"
+  echo "warmup: sequential single-request prime per tier, PLE page-cache residency check, then sleep 60"
   echo "note: no c16+; endpoint exclusive; fincore of PLE overlay before/after"
 } > "$OUT/META.txt"
 
