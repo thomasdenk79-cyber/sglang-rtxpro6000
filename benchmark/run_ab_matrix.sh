@@ -21,27 +21,36 @@ health() { curl -m 10 -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8001/he
 } > "$OUT/META.txt"
 
 ple_resident() {
-  local f=/srv/ai/ple/flash-next-ple/ple/layer-0.bin
-  if [ -f "$f" ] || podman unshare test -f "$f"; then
-    podman unshare fincore -B --unit b "$f" 2>/dev/null | tail -n +2 | awk '{print "ple_table_resident_bytes="$1" of_size="$2}'
-  fi
+  fincore /srv/ai/ple/flash-next-ple/ple/layer-0.bin 2>/dev/null | tail -1 | awk '{print "ple_pagecache="$1" of="$3}'
 }
 
-run() { # label inp out n c
-  local name=$1 inp=$2 out=$3 n=$4 c=$5
-  echo "START $name $(date -Is)"
-  if podman exec pennyroyal python3 -m sglang.benchmark.serving \
-    --backend sglang --base-url http://127.0.0.1:8001 \
-    --dataset-name random --random-input-len "$inp" --random-output-len "$out" \
-    --random-range-ratio 1.0 --max-concurrency "$c" --num-prompts "$n" \
-    --output-file "/tmp/${name}.json" > "$OUT/${name}.log" 2>&1; then
-    podman cp "pennyroyal:/tmp/${name}.json" "$OUT/${name}.json"
-    echo "DONE $name $(date -Is)"
-  else
-    echo "FAIL $name rc=$? $(date -Is)"
-    return 1
-  fi
-  sleep 5
+run() { # label inp out n c  (one retry after service auto-restart)
+  local name=$1 inp=$2 out=$3 n=$4 c=$5 attempt rc
+  for attempt in 1 2; do
+    echo "START $name attempt=$attempt $(date -Is)"
+    if podman exec pennyroyal python3 -m sglang.benchmark.serving \
+      --backend sglang --base-url http://127.0.0.1:8001 \
+      --dataset-name random --random-input-len "$inp" --random-output-len "$out" \
+      --random-range-ratio 1.0 --max-concurrency "$c" --num-prompts "$n" \
+      --output-file "/tmp/${name}.json" > "$OUT/${name}.log" 2>&1; then
+      podman cp "pennyroyal:/tmp/${name}.json" "$OUT/${name}.json"
+      echo "DONE $name $(date -Is)"
+      sleep 5
+      return 0
+    fi
+    rc=$?
+    echo "FAIL $name attempt=$attempt rc=$rc $(date -Is)"
+    # service may have OOM-crashed; wait for auto-restart before retry
+    if [ "$attempt" = 1 ]; then
+      echo "waiting up to 600s for health before retry"
+      for _ in $(seq 1 60); do
+        [ "$(health)" = "200" ] && break
+        sleep 10
+      done
+      sleep 30
+    fi
+  done
+  return 1
 }
 
 # ---- warmup: one small pass per tier, all concurrencies (2 prompts each) ----
@@ -49,7 +58,7 @@ echo "WARMUP start $(date -Is)"; ple_resident >> "$OUT/META.txt"
 for tier in "256 256" "1024 256" "8192 1024" "32768 1024"; do
   IFS=' ' read -r inp out <<< "$tier"
   for c in 1 2 3 4 5 6 7 8; do
-    run "warm_${inp}_${c}" "$inp" "$out" "$c" "$c" || { echo "WARMUP_FAIL"; exit 1; }
+    run "warm_${inp}_${c}" "$inp" "$out" "$c" "$c" || echo "WARMUP_SKIP warm_${inp}_${c}"
   done
 done
 echo "warmup done $(date -Is), settling 60s"; sleep 60; ple_resident >> "$OUT/META.txt"
