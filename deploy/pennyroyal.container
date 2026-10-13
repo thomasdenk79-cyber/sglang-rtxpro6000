@@ -19,6 +19,7 @@ Volume=/srv/ai/pennyroyal/config/config:/config:ro
 Volume=/srv/ai/models:/models:ro
 Volume=/srv/ai/cache/pennyroyal:/cache:U,Z
 Volume=/srv/ai/nixl/pennyroyal:/nixl:U,Z
+Volume=/srv/ai/ple:/ple:U,Z
 Environment=TARGET_MODEL=/models/RadixArk-Qwen3.8-Flash-Next-NVFP4
 Environment=CACHE_BASE=/cache
 Environment=NIXL_STORAGE_BASE=/nixl
