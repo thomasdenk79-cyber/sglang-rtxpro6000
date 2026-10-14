@@ -25,8 +25,9 @@ ple_resident() {
 }
 
 run() { # label inp out n c  (one retry after service auto-restart)
-  local name=$1 inp=$2 out=$3 n=$4 c=$5 attempt rc
+  local name=$1 inp=$2 out=$3 n=$4 c=$5 attempt rc sec0 sec1
   for attempt in 1 2; do
+    sec0=$(awk '{print $6}' /sys/block/nvme0n1/stat)
     echo "START $name attempt=$attempt $(date -Is)"
     if podman exec pennyroyal python3 -m sglang.benchmark.serving \
       --backend sglang --base-url http://127.0.0.1:8001 \
@@ -34,6 +35,8 @@ run() { # label inp out n c  (one retry after service auto-restart)
       --random-range-ratio 1.0 --max-concurrency "$c" --num-prompts "$n" \
       --output-file "/tmp/${name}.json" > "$OUT/${name}.log" 2>&1; then
       podman cp "pennyroyal:/tmp/${name}.json" "$OUT/${name}.json"
+      sec1=$(awk '{print $6}' /sys/block/nvme0n1/stat)
+      echo "$name disk_read_kb=$(( (sec1-sec0)/2 ))" >> "$OUT/META.txt"
       echo "DONE $name $(date -Is)"
       sleep 5
       return 0
