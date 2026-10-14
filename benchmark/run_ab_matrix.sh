@@ -3,8 +3,11 @@
 # (c16+ has no operational meaning with MAX_RUNNING_REQUESTS=8), tiers
 # short/medium/long/xlong, EXPLICIT warmup before any measured point.
 # Usage: run_ab_matrix.sh <label>   (label e.g. ram|nvme|nvme-bf16)
+# Env TIER_SPEC overrides the tier list, e.g. mem-poor round runs short+long
+# only: TIER_SPEC='short:256:256 long:8192:1024'
 set -uo pipefail
 LABEL="${1:?usage: run_ab_matrix.sh <label>}"
+TIER_SPEC="${TIER_SPEC:-short:256:256 medium:1024:256 long:8192:1024 xlong:32768:1024}"
 REPO=/home/z000g9hu/work/sglang-rtxpro6000
 STAMP=$(date +%Y%m%d-%H%M%S)
 OUT="$REPO/bench-results/ab2-$LABEL-$STAMP"
@@ -58,7 +61,7 @@ run() { # label inp out n c  (one retry after service auto-restart)
 
 # ---- warmup: sequential single-request cache prime per tier (not concurrency load) ----
 echo "WARMUP start $(date -Is)"; ple_resident >> "$OUT/META.txt"
-for spec in "short:256:256" "medium:1024:256" "long:8192:1024" "xlong:32768:1024"; do
+for spec in $TIER_SPEC; do
   IFS=: read -r tier inp out <<< "$spec"
   run "warm_${tier}" "$inp" "$out" 1 1 || echo "WARMUP_SKIP warm_${tier}"
 done
@@ -66,7 +69,7 @@ echo "warmup done $(date -Is), settling 60s"; sleep 60; ple_resident >> "$OUT/ME
 free -g | awk 'NR==2{print "MemAvailable_GB="$7 >> "'"$OUT"'/META.txt"}'
 
 # ---- measured matrix ----
-for spec in short:256:256 medium:1024:256 long:8192:1024 xlong:32768:1024; do
+for spec in $TIER_SPEC; do
   IFS=: read -r t inp out <<< "$spec"
   for c in 1 2 3 4 5 6 7 8; do
     run "qwen_${t}_c${c}" "$inp" "$out" 8 "$c" || { echo "MATRIX_FAIL $t c$c"; exit 1; }
