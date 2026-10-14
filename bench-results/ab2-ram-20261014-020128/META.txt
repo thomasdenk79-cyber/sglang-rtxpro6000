@@ -1,0 +1,9 @@
+start: 2026-10-14T02:01:28+02:00
+label: ram
+config: v3.0.1 mem_fraction=0.978 max_running=8 mamba=35 queued=16 chunk=8192 graph_bs=8 hicache=32GB+nixl
+warmup: sequential single-request prime per tier, PLE page-cache residency check, then sleep 60
+note: no c16+; endpoint exclusive; fincore of PLE overlay before/after
+ple_pagecache=47,7G of=47,7G
+ple_pagecache=47,7G of=47,7G
+MemAvailable_GB=60
+ple_pagecache=47,7G of=47,7G
