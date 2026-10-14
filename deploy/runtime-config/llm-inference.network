@@ -1,0 +1,8 @@
+[Unit]
+Description=Local LLM inference network
+
+[Network]
+NetworkName=llm-inference.network
+
+[Install]
+WantedBy=default.target

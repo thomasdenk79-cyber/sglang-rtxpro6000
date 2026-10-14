@@ -1,0 +1,29 @@
+# LiteLLM gateway — quadlet unit (makes recreation declarative & persistent).
+# Secrets/aliases: ~/.config/litellm/.env + config.yaml (mounted).
+# ChatGPT/Codex OAuth for luna-gpt-60 persists under ~/.local/share/litellm/auth.
+# NOTE: switching the running manual container to this unit is done in a planned
+# maintenance window only — restarting the gateway blocks agents running through it.
+
+[Unit]
+Description=LiteLLM gateway (port 4000)
+After=network-online.target
+
+[Container]
+Image=docker.litellm.ai/berriai/litellm:latest
+ContainerName=litellm
+Network=host
+EnvironmentFile=/home/z000g9hu/.config/litellm/.env
+Environment=DISABLE_SPEND_LOGS=true
+Environment=STORE_MODEL_IN_DB=false
+Environment=DISABLE_SCHEMA_UPDATE=true
+Volume=/home/z000g9hu/.config/litellm/config.yaml:/app/config.yaml:ro
+Volume=/home/z000g9hu/.local/share/litellm:/app/data
+Volume=/home/z000g9hu/.local/share/litellm/auth:/root/.config/litellm
+Exec=--config /app/config.yaml --host 0.0.0.0 --port 4000
+
+[Service]
+Restart=always
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target

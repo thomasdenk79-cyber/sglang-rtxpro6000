@@ -1,5 +1,24 @@
 # Pennyroyal handover — before eGPU reboot
 
+## Bare-metal rebuild anchor (2026-10-14)
+
+Planned OS reinstall (CachyOS). Everything needed to bring this service back
+from nothing is now in git or on the external backup disk:
+
+- Live runtime config snapshot: `deploy/runtime-config/` (launcher recipe,
+  NIXL toml, deployed Quadlet incl. GPU UUID gate, litellm unit, network).
+- Reader staging override: `deploy/ple-nvme-override/backend.py` (required
+  until the upstream image ships >16 MiB staging).
+- Restore order + first-boot target config (Swift 1.5 NVFP4 + FP8-PLE NVMe):
+  `../workstation-setup/docs/CACHYOS-REBUILD-20261014.md` (section 5).
+- Model backups: `/mnt/data_ntfs/HF-models/{RadixArk-Qwen3.8-Flash-Next-NVFP4,
+  Swift-1.5-Qwen3.8-Flash-Next-NVFP4-FP8PLE}`; secrets/quadlet/hermes state in
+  `/mnt/data_ntfs/Backups/home-config-*.tar.gz` (`workstation-setup/scripts/
+  backup-home-config.sh`). Never commit those files.
+- BF16-PLE-on-FP4-body remains blocked (qwen4_exp processor expects the FP8
+  wrapper; tokenizer AttributeError at processor build). Do not retry on the
+  new box unless upstream fixed the loader.
+
 Date: 2026-10-11
 Repository: `/srv/github/pennyroyal`
 Working branch: `tom-eval-pennyroyal-3.0-merged-directports-john-experimental`

@@ -1,0 +1,60 @@
+[Unit]
+Description=Pennyroyal Qwen3.8 Flash-Next v3.0.1 (Podman, RTX PRO 6000 Blackwell)
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/srv/ai/models/RadixArk-Qwen3.8-Flash-Next-NVFP4/config.json
+
+[Container]
+Image=ghcr.io/jpezzulli/sglang-rtxpro6000@sha256:25400f5609a67a692a40e8567e4a0e635b619279ab411f2a363b02a06251f2d1
+ContainerName=pennyroyal
+Network=llm-inference.network
+User=1000:1000
+AddDevice=nvidia.com/gpu=GPU-780d3589-9811-40ec-db66-93a9146697f3
+PublishPort=127.0.0.1:8001:8001
+ShmSize=16g
+Ulimit=memlock=-1:-1
+SecurityLabelDisable=true
+PodmanArgs=--security-opt=seccomp=unconfined
+Volume=/srv/ai/pennyroyal/config/config:/config:ro
+Volume=/srv/ai/models:/models:ro
+Volume=/srv/ai/cache/pennyroyal:/cache:U,Z
+Volume=/srv/ai/nixl/pennyroyal:/nixl:U,Z
+Volume=/srv/ai/ple:/ple:U,Z
+Volume=/srv/ai/models/qwen-bf16-ple-src:/plesrc:ro
+Volume=/srv/ai/ple/overrides/backend.py:/opt/pennyroyal/.ple-nvme/sglang_ssd_stream/backend.py:ro
+Environment=TARGET_MODEL=/models/RadixArk-Qwen3.8-Flash-Next-NVFP4
+Environment=CACHE_BASE=/cache
+Environment=NIXL_STORAGE_BASE=/nixl
+Environment=NIXL_CONFIG=/config/nixl-posix-frspec.toml
+# c16 benchmark profile: 16 admitted requests, 67 recurrent-state slots,
+# and reduced static fraction to leave room for the larger Mamba pool.
+Environment=MAX_RUNNING_REQUESTS=8
+Environment=MAX_MAMBA_CACHE_SIZE=35
+Environment=MAX_QUEUED_REQUESTS=16
+Environment=PENNY_MEM_FRACTION=0.978
+Environment=TP_SIZE=1
+Environment=SGLANG_MM_PREPROCESS_DEVICE=cpu
+Environment=SGLANG_FORWARD_UNKNOWN_TOOLS=true
+Environment=FLASHINFER_GDN_FP16_ACCUM_MMA=1
+Environment=CUDA_DEVICE_ORDER=PCI_BUS_ID
+Environment=CUDA_VISIBLE_DEVICES=0
+Exec=exec bash /config/start-flash-next-frspec.sh
+HealthCmd=python3 -c "import urllib.request; raise SystemExit(0 if urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=8).status == 200 else 1)"
+HealthInterval=30s
+HealthTimeout=30s
+HealthRetries=6
+HealthStartPeriod=900s
+
+[Service]
+ExecStartPre=/usr/bin/env PENNYROYAL_GPU_CHECK_ONLY=1 /home/z000g9hu/work/sglang-rtxpro6000/scripts/pennyroyal/host-preflight.sh
+# SGLang can exit with status 0 after a fatal scheduler OOM; only Restart=always
+# recovers that case. A failed ExecStartPre is also a failure, so the GPU-absent
+# probe still retries at RestartSec cadence, and an explicit systemctl stop
+# still stays stopped under 'always' as well.
+Restart=always
+RestartSec=60
+TimeoutStartSec=3600
+TimeoutStopSec=180
+
+[Install]
+WantedBy=default.target
