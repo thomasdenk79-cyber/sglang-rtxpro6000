@@ -1,0 +1,14 @@
+started=2026-10-15T05:31:14+02:00
+source_revision=1b2b4f485d313c6fce0c4780a6963788b826f72c
+source_branch=tom-eval-pennyroyal-3.0-merged-directports-john-experimental
+infra_head=339e7e673a86eb24fdbfc0b719e8e62ea2fe4a9a
+service_profile=c8; max_running=8; max_queued=16; mamba_slots=35; mem_fraction=0.978
+ple_backend=nvme; hicache=32GiB; pinned_host_allocator=true
+output_tokens=256; sampling=random input with range ratio 1.0
+concurrency ladder=1,2,3,4,5,6,8 (upper bound is current service cap)
+adaptive stop=after two consecutive points fail to exceed best aggregate output throughput by >5%
+large prompts (64k+) use >=max(4,2*c) requests; smaller prompts use >=max(8,2*c)
+context-length startup warning (configured 524288 > derived 262144) remains unresolved
+finished=2026-10-15T05:31:55+02:00
+exit_condition=stopped_on_error_or_memory_guard
+data_dir=/home/z000g9hu/work/repos/sglang-rtxpro6000/bench-results/swift15-wsl-adaptive-20261015-053114

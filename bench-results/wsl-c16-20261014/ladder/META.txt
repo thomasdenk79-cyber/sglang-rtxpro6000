@@ -1,0 +1,3 @@
+start: 2026-10-15T00:25:07+02:00
+config: mem_fraction_static=0.968 (META text from script hardcoded 0.947; actual run 0.968) chunked_prefill_size=8192 cuda_graph_max_bs_decode=16 max_running_requests=16 max_mamba_cache_size=67 max_queued_requests=32 kv_pool=778816 hicache=32GB+nixl
+caveat: shared endpoint; LiteLLM agent traffic (incl. the supervising session) may interleave
