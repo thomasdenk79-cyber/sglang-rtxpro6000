@@ -346,3 +346,21 @@ vs 17–22 @c32, xxlong-100k survives c32 (NRestarts=0 — queue cap + pool
 admission convert the flood into 7-wide concurrency). Spec accept length
 flat across c (adaptive-spec v2 verified). Gateway policy recommendation:
 admit ≤8 interactive / ≤12 batch, queue the rest, MTP stays on.
+
+## Current status — NVFP4 PLE preflight compatibility (2026-10-16 05:34 CEST)
+
+- NVFP4 commits `015ac1346` and `b0abfcb10` were fast-forwarded onto
+  `tom-eval-pennyroyal-3.0-merged-directports-john-experimental`; manifest fix
+  `de5d754364fb7feeb88b1d6c2a830a1aa9948a6c` is pushed to `origin` on that
+  established branch.
+- `tools/ple_nvme/ssd_stream/src/sglang_ssd_stream/pennyroyal-source.json`
+  records the NVFP4 QSA backend SHA-256
+  `17de40e40cd1eec48ecb091950918506650715276ad1aa03ad9caec34d37c882` and
+  `server_args` SHA-256
+  `9cad6588857f33a25d95dab0a453079433f760dfd3d5170573746186c71e135d`;
+  the other nine compatibility hashes are unchanged. All 11 source hashes
+  validated against the checkout.
+- Runtime recovery has not started. Pennyroyal remains in its prior stopped /
+  failed preflight state; no services were started or restarted, and no image
+  build or GPU/model test was run. Resume with the approved runtime recovery
+  process after coordination.
