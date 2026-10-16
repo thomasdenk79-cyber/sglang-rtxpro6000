@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 from copy import copy
 from functools import lru_cache
 from typing import Dict, Optional, Tuple
@@ -36,6 +37,10 @@ from sglang.srt.layers.attention.qsa.metadata import (
     compressed_decode_view,
     pending_ring_groups,
     pending_ring_groups_required,
+)
+from sglang.srt.layers.attention.qsa.nvfp4_kv import (
+    nvfp4_gather_dequant,
+    qwen_sparse_kv_extraction_compact_nvfp4_triton,
 )
 from sglang.srt.layers.attention.qsa.sparse_attn import (
     qwen_sparse_fa2_cu_seqlens_triton,
@@ -409,6 +414,14 @@ class QwenSparseAttnBackend(AttentionBackend):
         # every CUDA graph bakes lives as long as the graphs that reference it.
         self._trtllm_workspace = None
         self._trtllm_scratch_shareable = _trtllm_scratch_is_shareable(runner)
+        # NVFP4 KV (local): gathers dequantize into a scratch of this dtype, so the
+        # downstream decode/prefill kernels see the same layout as an FP8 cache.
+        self._nvfp4_scratch_dtype = (
+            torch.bfloat16
+            if os.environ.get("SGLANG_QSA_NVFP4_SCRATCH", "fp8") == "bf16"
+            else torch.float8_e4m3fn
+        )
+        self._kv_quant_method = False  # resolved lazily; False = not looked up yet
         self._graph_extend_lens = None
         self._graph_extend_lens_pin = None
         self.qsa_stall_diagnostics = (
@@ -416,6 +429,31 @@ class QwenSparseAttnBackend(AttentionBackend):
         )
         if self.qsa_stall_diagnostics is not None:
             logger.info("QSA stall diagnostics enabled (30s stall threshold)")
+
+    def _nvfp4_view(self, layer):
+        """(k_fp4, v_fp4, k_sf, v_sf, k_global, v_global) when the pool stores NVFP4, else None."""
+        if self._kv_quant_method is False:
+            getter = getattr(self.token_to_kv_pool, "get_kv_cache_quant_method", None)
+            self._kv_quant_method = getter() if getter is not None else None
+        qm = self._kv_quant_method
+        if getattr(qm, "name", None) != "nvfp4":
+            return None
+        k, v, k_sf, v_sf = self.token_to_kv_pool.get_raw_kv_buffer(layer.layer_id)
+        lid = layer.layer_id
+        # Device slices, not Python floats: CUDA graphs must read them at replay.
+        return k, v, k_sf, v_sf, qm.k_scales_gpu[lid : lid + 1], qm.v_scales_gpu[lid : lid + 1]
+
+    def _set_kv_buffer(self, layer, loc, k, v):
+        nvfp4 = self._nvfp4_view(layer)
+        if nvfp4 is None:
+            self.token_to_kv_pool.set_kv_buffer(layer, loc, k, v)
+            return
+        # HybridLinearKVPool.set_kv_buffer defaults k_scale/v_scale to the float 1.0,
+        # which makes the NVFP4 quantizer build a CUDA tensor from a Python float --
+        # a CPU->GPU copy that CUDA graph capture rejects. Pass the device scales.
+        self.token_to_kv_pool.set_kv_buffer(
+            layer, loc, k, v, k_scale=nvfp4[4], v_scale=nvfp4[5]
+        )
 
     @staticmethod
     def _is_speculative_paged_mode(forward_mode) -> bool:
@@ -1778,9 +1816,7 @@ class QwenSparseAttnBackend(AttentionBackend):
         if topk_indices is None:
             raise ValueError("QSA sparse attention requires topk_indices")
         if save_kv_cache:
-            self.token_to_kv_pool.set_kv_buffer(
-                layer, forward_batch.out_cache_loc, k, v
-            )
+            self._set_kv_buffer(layer, forward_batch.out_cache_loc, k, v)
         q = q.reshape(-1, layer.tp_q_head_num, layer.head_dim)
         num_output_rows = q.shape[0]
         num_valid_rows = topk_indices.shape[0]
@@ -1799,6 +1835,8 @@ class QwenSparseAttnBackend(AttentionBackend):
             )
             return self._pad_extend_output(output, num_output_rows)
         if not q.is_cuda:
+            if self._nvfp4_view(layer) is not None:
+                raise NotImplementedError("QSA NVFP4 KV has no CPU path")
             metadata = self._resolve_metadata(forward_batch)
             slots = self._logical_to_physical(topk_indices, metadata)
             pool = self.token_to_kv_pool
@@ -1839,8 +1877,10 @@ class QwenSparseAttnBackend(AttentionBackend):
         diagnostics = getattr(self, "qsa_stall_diagnostics", None)
         if diagnostics is not None:
             diagnostics.mark_before_kv_getters(layer.layer_id, pool)
-        k_buffer = pool.get_key_buffer(layer.layer_id)
-        v_buffer = pool.get_value_buffer(layer.layer_id)
+        nvfp4 = self._nvfp4_view(layer)
+        if nvfp4 is None:
+            k_buffer = pool.get_key_buffer(layer.layer_id)
+            v_buffer = pool.get_value_buffer(layer.layer_id)
         if diagnostics is not None:
             diagnostics.set_phase(layer.layer_id, "before_req_indices_to_list")
         req_to_token = self.req_to_token_pool.req_to_token
@@ -1866,12 +1906,25 @@ class QwenSparseAttnBackend(AttentionBackend):
             sequence_lens, dtype=torch.int32, device=q.device
         )
         cu_seqlens_k = F.pad(sequence_lens_tensor.cumsum(0), (1, 0)).contiguous()
+        if nvfp4 is None:
+            packed_k = k_buffer.index_select(0, gather_index)
+            packed_v = v_buffer.index_select(0, gather_index)
+        else:
+            # Same packed full-context tensor the kernel consumes for FP8 caches,
+            # dequantized during the gather (no per-pool workspace).
+            k_fp4, v_fp4, k_sf, v_sf, k_g, v_g = nvfp4
+            packed_k = nvfp4_gather_dequant(
+                k_fp4, k_sf, k_g, gather_index, self._nvfp4_scratch_dtype
+            )
+            packed_v = nvfp4_gather_dequant(
+                v_fp4, v_sf, v_g, gather_index, self._nvfp4_scratch_dtype
+            )
         if diagnostics is not None:
             diagnostics.set_phase(layer.layer_id, "before_sparse_attention")
         output = sparse_gqa_fwd_interface_triton_ck(
             q.contiguous(),
-            k_buffer.index_select(0, gather_index),
-            v_buffer.index_select(0, gather_index),
+            packed_k,
+            packed_v,
             topk_indices,
             cu_seqlens_q,
             cu_seqlens_k,
@@ -1979,6 +2032,7 @@ class QwenSparseAttnBackend(AttentionBackend):
         metadata,
         topk_indices: torch.Tensor,
         trtllm_decode,
+        nvfp4=None,
     ) -> torch.Tensor:
         """Selected KV packs into page-aligned row strides so a static
         arange block table can drive FlashInfer's paged decode API;
@@ -2003,32 +2057,51 @@ class QwenSparseAttnBackend(AttentionBackend):
             batch, pages_per_row, page, device
         )
         capacity_rows = self._cuda_graph_max_tokens if metadata.is_cuda_graph else batch
+        if nvfp4 is None:
+            num_kv_heads, head_dim = k_buffer.shape[1], k_buffer.shape[2]
+            scratch_dtype = k_buffer.dtype
+        else:
+            num_kv_heads, head_dim = nvfp4[0].shape[1], nvfp4[0].shape[2] * 2
+            scratch_dtype = self._nvfp4_scratch_dtype
         packed_k, packed_v = self._get_fa2_scratch(
             max(capacity_rows, batch) * stride,
-            k_buffer.shape[1],
-            k_buffer.shape[2],
-            k_buffer.dtype,
-            k_buffer.device,
+            num_kv_heads,
+            head_dim,
+            scratch_dtype,
+            device,
         )
-        qwen_sparse_kv_extraction_compact_triton(
-            k_buffer,
-            v_buffer,
-            self.req_to_token_pool.req_to_token,
-            (
-                metadata.row_req_pool_indices
-                if metadata.row_req_pool_indices is not None
-                else forward_batch.req_pool_indices
-            ),
-            topk_indices,
-            sequence_lens,
-            cu_strided,
-            packed_k,
-            packed_v,
-            batch,
-            topk,
+        row_req = (
+            metadata.row_req_pool_indices
+            if metadata.row_req_pool_indices is not None
+            else forward_batch.req_pool_indices
         )
-        num_kv_heads = k_buffer.shape[1]
-        head_dim = k_buffer.shape[2]
+        if nvfp4 is None:
+            qwen_sparse_kv_extraction_compact_triton(
+                k_buffer,
+                v_buffer,
+                self.req_to_token_pool.req_to_token,
+                row_req,
+                topk_indices,
+                sequence_lens,
+                cu_strided,
+                packed_k,
+                packed_v,
+                batch,
+                topk,
+            )
+        else:
+            qwen_sparse_kv_extraction_compact_nvfp4_triton(
+                *nvfp4,
+                self.req_to_token_pool.req_to_token,
+                row_req,
+                topk_indices,
+                sequence_lens,
+                cu_strided,
+                packed_k,
+                packed_v,
+                batch,
+                topk,
+            )
         kc = (
             packed_k[: batch * stride]
             .view(-1, page, num_kv_heads, head_dim)
@@ -2065,9 +2138,7 @@ class QwenSparseAttnBackend(AttentionBackend):
         if topk_indices is None:
             raise ValueError("QSA sparse attention requires topk_indices")
         if save_kv_cache:
-            self.token_to_kv_pool.set_kv_buffer(
-                layer, forward_batch.out_cache_loc, k, v
-            )
+            self._set_kv_buffer(layer, forward_batch.out_cache_loc, k, v)
         q = q.reshape(-1, layer.tp_q_head_num, layer.head_dim)
         return self._forward_paged_attention(q, layer, forward_batch, topk_indices)
 
@@ -2079,9 +2150,15 @@ class QwenSparseAttnBackend(AttentionBackend):
         topk_indices: torch.Tensor,
     ) -> torch.Tensor:
         pool = self.token_to_kv_pool
-        k_buffer = pool.get_key_buffer(layer.layer_id)
-        v_buffer = pool.get_value_buffer(layer.layer_id)
+        nvfp4 = self._nvfp4_view(layer)
+        if nvfp4 is None:
+            k_buffer = pool.get_key_buffer(layer.layer_id)
+            v_buffer = pool.get_value_buffer(layer.layer_id)
+        else:
+            k_buffer = v_buffer = None
         if not q.is_cuda:
+            if nvfp4 is not None:
+                raise NotImplementedError("QSA NVFP4 KV has no CPU path")
             metadata = self._resolve_metadata(forward_batch)
             slots = self._logical_to_physical(topk_indices, metadata)
             output = qsa_sparse_attention(q, k_buffer, v_buffer, slots, layer.scaling)
@@ -2100,6 +2177,11 @@ class QwenSparseAttnBackend(AttentionBackend):
                 metadata,
                 topk_indices,
                 trtllm_decode,
+                nvfp4=nvfp4,
+            )
+        if nvfp4 is not None:
+            raise NotImplementedError(
+                "QSA NVFP4 KV requires the trtllm sparse decode path (SM100/SM120)"
             )
 
         flash_attn_varlen_func = _resolve_flash_attn_varlen_func()

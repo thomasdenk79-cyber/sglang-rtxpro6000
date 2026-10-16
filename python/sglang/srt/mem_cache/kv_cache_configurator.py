@@ -1628,6 +1628,13 @@ class KVCacheConfigurator:
             )
         else:
             pool_class = QSATokenToKVPool
+            if quant_method is not None and quant_method.name == "nvfp4":
+                # Local: QSA gathers dequantize NVFP4 themselves; drop the workspace.
+                from sglang.srt.layers.quantization.fp4_kv_cache_quant_method import (
+                    QSANVFP4KVCacheMethod,
+                )
+
+                quant_method.__class__ = QSANVFP4KVCacheMethod
             extra_args.update(
                 qsa_index_kv_heads=qsa_profile.kv_heads,
                 qsa_index_head_dim=qsa_profile.head_dim,

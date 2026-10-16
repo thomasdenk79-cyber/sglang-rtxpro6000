@@ -556,6 +556,21 @@ class NVFP4KVCacheMethod(KVCacheQuantMethodBase):
         return fp4_size + scale_size + dq_size
 
 
+class QSANVFP4KVCacheMethod(NVFP4KVCacheMethod):
+    """NVFP4 KV for QSA pools (local extension).
+
+    QSA dequantizes during its own top-k / prefix gathers (qsa/nvfp4_kv.py), so
+    the pool does not need the full-size FP8 dequant workspace the generic
+    recipe allocates for flashinfer prefill (2x slots*heads*dim bytes per pool).
+    """
+
+    def needs_dequant_workspace(self) -> bool:
+        return False
+
+    def dequant_workspace_dtype(self):
+        return None
+
+
 class FP4MXBlock16KVCacheMethod(KVCacheQuantMethodBase):
     """Block-16 FP4 E2M1 single-level scaling.
 

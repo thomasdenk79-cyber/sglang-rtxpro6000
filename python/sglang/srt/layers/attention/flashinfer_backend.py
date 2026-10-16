@@ -321,6 +321,22 @@ class FlashInferAttnBackend(AttentionBackend):
         self.is_dllm_model = self.dllm_config is not None
 
         self.kv_cache_quant_method = self.token_to_kv_pool.get_kv_cache_quant_method()
+        # Local (QSA NVFP4 KV): for QSA models attn_backend_wrapper builds this
+        # backend and then replaces it with QwenSparseAttnBackend, so it never
+        # reads the cache. Present the pool as unquantized so construction does
+        # not demand NVFP4 flashinfer accesses or the dequant workspace QSA drops.
+        qsa_nvfp4_placeholder = os.environ.get(
+            "SGLANG_QSA_NVFP4_KV"
+        ) == "1" and getattr(self.kv_cache_quant_method, "name", None) == "nvfp4"
+        if qsa_nvfp4_placeholder:
+            from sglang.srt.layers.attention.qsa.config import is_qwen_qsa
+
+            assert is_qwen_qsa(model_runner.model_config.hf_config)
+            from sglang.srt.layers.quantization.fp4_kv_cache_quant_method import (
+                UnquantizedKVCacheMethod,
+            )
+
+            self.kv_cache_quant_method = UnquantizedKVCacheMethod()
         self.prefill_kv_access = self.kv_cache_quant_method.resolve_attention_access(
             "prefill", "flashinfer"
         )
@@ -361,6 +377,8 @@ class FlashInferAttnBackend(AttentionBackend):
             )
             else model_runner.kv_cache_dtype
         )
+        if qsa_nvfp4_placeholder:
+            self.flashinfer_kv_cache_dtype = torch.float8_e4m3fn
 
         # Parse constants
         self.decode_use_tensor_cores = should_use_tensor_core(

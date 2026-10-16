@@ -6639,6 +6639,12 @@ class ServerArgs:
                     "--kv-cache-dtype=nvfp4 requires Blackwell SM100 or SM120. "
                     "Use --kv-cache-dtype=fp4_mx_block16 for the block-size-16 FP4 recipe."
                 )
+            if os.environ.get("SGLANG_QSA_NVFP4_KV") == "1":
+                # Local: QSA layers read NVFP4 through their own dequantizing
+                # gathers (qsa/nvfp4_kv.py); the MHA backend whitelist below
+                # does not describe that path.
+                logger.warning("KV4: QSA NVFP4 KV enabled via SGLANG_QSA_NVFP4_KV=1")
+                return
             if (
                 prefill_backend != decode_backend and prefill_backend != "fa4"
             ):  # Take care of prefill=fa4 later

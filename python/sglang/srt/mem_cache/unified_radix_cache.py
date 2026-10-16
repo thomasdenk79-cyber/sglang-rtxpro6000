@@ -951,6 +951,26 @@ class UnifiedRadixCache(BasePrefixCache):
 
         if effective_cache_len <= 0:
             req.prefix_indices = kv_indices_orig.to(dtype=torch.int64, copy=True)
+            # Local fix (ping-pong exhaustion): no checkpoint was donated this round
+            # (extend below the checkpoint grid, or donation skipped under pressure),
+            # so the relock below never runs and the admission lock would pin the
+            # COW source's mamba slot for the whole request. Apply the same
+            # skip-MAMBA relock as the normal path; the source was already COW'd.
+            if (
+                not chunked
+                and envs.SGLANG_OPT_MAMBA_SKIP_DECODE_LOCK.get()
+                and ComponentType.MAMBA in self.tree_components
+                and req.last_node is not None
+                and req.last_node
+                not in (req.skip_lock_node_ids or {}).get(ComponentType.MAMBA, ())
+            ):
+                self._dec_req_lock(req)
+                lock_result = self.inc_lock_ref(
+                    req.last_node, skip_lock_components=(ComponentType.MAMBA,)
+                )
+                req.swa_uuid_for_lock = lock_result.swa_uuid_for_lock
+                req.skip_lock_node_ids = lock_result.skip_lock_node_ids
+                req.swa_prefix_lock_released = False
             for comp in self._components_tuple:
                 comp.cleanup_after_caching_req(
                     req, is_finished=False, insert_params=insert_params
