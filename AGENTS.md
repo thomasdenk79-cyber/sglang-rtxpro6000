@@ -17,6 +17,9 @@ before changing this worktree; verify the live Git state and GPU again.
 - The launch profile is named `flashnext:qsa`. No image build, model start,
   inference, benchmark, or production change has occurred. The visible GPU is
   an RTX 3500 Ada, not the target RTX PRO 6000 Blackwell.
+- Shared OCI metadata labels and the patch matrix are in
+  `docker/pennyroyal/FLASHNEXT-VARIANTS.md`; the local NVFP4 model revision and
+  BF16 PLE table digest have been verified there.
 
 ## Repository and branches
 
@@ -51,12 +54,12 @@ its original BF16 PLE table, roughly 100 GB; do not use the FP8-PLE transplant
 as the common profile.
 
 The prepared local target is
-`/srv/ai/models/Swift-1.5-Qwen3.8-Flash-Next-BF16PLE`. Its config reports
-ModelOpt quantization, native 262144 positions, default BF16 PLE dtype, and
-`ple_layer_ids=[2]`; its index contains 137 PLE tensors. Files occupy about
-173.66 GiB (directory total from `du` about 150G). Treat this prepared
-checkpoint as the intended target, but do not claim its complete Hub source
-revision until the file-level provenance is verified.
+`/srv/ai/models/Swift-1.5-Qwen3.8-Flash-Next-BF16PLE`. Hub metadata and API
+identify `ukisai/Swift-1.5-Qwen3.8-Flash-Next-NVFP4` revision
+`3ff0520224f264a2d0ac4ab56ece8f2f13aadb38` as the current model snapshot. The
+PLE stream manifest binds its source config/index hashes; its 102,400,491,520
+byte BF16 table matches SHA-256
+`f90a8563ba5939e5c0b0f6a57bd3a5f94c39126932f4f10eae98c3585e81434d`.
 
 Tokenizer evidence from local artifacts:
 
@@ -133,25 +136,22 @@ experiment.
 
 ## Remaining work
 
-1. Verify the prepared checkpoint's full Hub provenance and the end-checkpoint
-   PLE byte identity; provenance remains unresolved.
-2. Finalize the #43135 port and `flashnext:qsa` startup-profile name.
-3. Continue adapting or explicitly defer #41173/#41175 with a patch rationale;
-  CUDA graph correctness checks need a CUDA host.
-4. Prepare reproducible Podman build profiles and OCI source labels; use the
-  existing generic lifecycle tooling rather than a new manager.
-5. Update the shared patch matrix and align all three branch handovers.
-6. Do not run benchmarks. GPU start, readiness, and inference checks are
-   blocked until the RTX PRO 6000 Blackwell is visible and its CDI mapping is
-   verified.
+1. Build `flashnext:bf16`, `flashnext:qsa`, and `flashnext:sm120` using the
+  arguments documented in `docker/pennyroyal/FLASHNEXT-VARIANTS.md`; inspect
+  the resulting OCI labels.
+2. CUDA graph tests for deferred #41173/#41175 ports require a suitable CUDA
+  host; do not port them speculatively.
+3. Do not run benchmarks. GPU start, readiness, and inference checks remain
+  blocked until the RTX PRO 6000 Blackwell is visible and its CDI mapping is
+  verified.
 
 ## Live state
 
 - `nvidia-smi` lists only the RTX 3500 Ada; the RTX PRO 6000 Blackwell remains
   absent. `pennyroyal.service` is inactive. No model start, restart, inference,
   or benchmark was run.
-- The BF16 base is committed and pushed; this QSA branch includes the changes
-  described above. The prompt branch remains
+- This QSA branch and the shared metadata/matrix commit are pushed to the user
+  fork. The prompt branch remains
   `e6fb2fa29340bcd3ab7310599e0ab6a67171863f`.
 - The LiteLLM and observability containers are separate from this source
   change; do not alter them as part of the experiment.
