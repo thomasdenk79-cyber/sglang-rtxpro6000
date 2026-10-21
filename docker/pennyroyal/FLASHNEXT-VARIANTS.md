@@ -72,7 +72,41 @@ podman build -f docker/pennyroyal/Dockerfile -t flashnext:bf16 \
 
 For the other tags, build on their branches with `flashnext:qsa` or
 `flashnext:sm120`, and set the variant and integrated-patches arguments to
-match the matrix. These images have not been built. Existing launch profiles
-are under `docker/pennyroyal/launch/config/`; they require the RTX PRO 6000
-Blackwell and verified CDI mapping for runtime validation. Do not benchmark or
-change the production container.
+match the matrix. Existing launch profiles are under
+`docker/pennyroyal/launch/config/`; they require the RTX PRO 6000 Blackwell and
+verified CDI mapping for runtime validation. Do not benchmark or change the
+production container.
+
+## Technical test run 2026-10-21 (BF16, operator-authorized window)
+
+The operator authorized a start-and-fix window on the Blackwell: stop
+production, get the BF16 image running, run small smoke tests and small
+benchmarks, then restore production from its declared profile. Nothing here runs
+the reviewer benchmark set.
+
+| Stage | Measured result | Source |
+|---|---|---|
+| Image build | `flashnext:bf16` = `5f8194628a76`, revision label `8e7739f9d28053347fbb33361f384b9542a7ba45` = branch tip, provenance guard passed | `logs/build-final-summary.txt`, `logs/build-bf16-20261021T071013Z.log` |
+| QSA / SM120 builds | `DISK_ABORT` with 32 GiB free, no image written | `logs/build-final-summary.txt` |
+| Capacity tests | 24 passed, 1 warning in 7.68 s | host pytest run of `test/registered/unit/pennyroyal/` |
+| Test engine start | `Application startup complete`, Uvicorn on 8001, `/health` 200, restart 0, OOM false; `max_total_num_tokens=711680`, prefill 8192, requests 8, context 524288, 2.66 GB GPU left | container log of `logs/frspec-test.sh` |
+| Smoke | health 200; model `pennyroyal`, `max_model_len` 524288; chat 128 completion tokens with a real answer; streaming 35 chunks; 4/4 parallel at concurrency 4, 64 tokens each, 7.8 s wall | `logs/frspec-smoke-20261021T080324Z.txt` |
+| NIXL host-tier warm repeat | cold cached 0; warm cached 2944/2973 = 99.02 %, 5.48 s to 0.85 s; verdict PASS | `logs/frspec-nixl-warm-20261021T080543Z.txt` |
+| Production restore | `/health` 200 and pod health `healthy`, restart 0, OOM false; `max_total_num_tokens=1100864`, prefill 4096, requests 10, context 262144, host KV pool 1,918,528 tokens / 25.54 GB; Blackwell 96,531 MiB of 97,887 MiB | `podman inspect`, container log, `nvidia-smi` at 08:14-08:16 UTC |
+| Agent route | LiteLLM alias `pennyroyal` answers through `:4000` (failover `gpt-6-luna` intact) | `/v1/chat/completions`, 8 completion tokens |
+
+Two findings to keep.
+
+1. The NIXL probe reports an empty `text_out` on a PASS verdict. That is the
+   probe, not the engine: the FR-Spec template defaults to
+   `enable_thinking=true`, so a probe that parses only `message.content` and
+   caps `max_tokens` sees everything land in `reasoning_content`. A
+   production 8-token request reproduced it exactly (`content_len=0`,
+   `reasoning_len=32`, `finish_reason=length`), while the smoke test's 128-token
+   chat returned text. The probe asserts the cache hit, so its verdict stands;
+   a future probe version should read `reasoning_content` as well.
+2. The test wrapper's NIXL skip check looks at the wrong variable, so the smoke
+   run skipped the warm stage while NIXL was demonstrably live in the same
+   runtime log. The stage ran manually and passed. The runner scripts and reports
+   live under `/srv/work/flashnext/logs/` (test-only NIXL directory
+   `/srv/ai/nixl/flashnext-frspec-test`, production NIXL never mounted).

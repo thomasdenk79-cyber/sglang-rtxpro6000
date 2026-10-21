@@ -31,16 +31,20 @@ before changing this worktree; verify the live Git state and GPU again.
   shell syntax, and diff checks passed. SM120's fused-writer tests passed
   (55 passed, 29 CUDA-only skipped); GPU byte-parity and graph-replay checks
   remain unverified.
-- Image builds: `flashnext:bf16` is built at the branch tip with the documented
-  OCI arguments and the build-time provenance guard (`185483ea993a`, revision
-  label `c4dd2896e55424c47515cbe2f1945590f0ffcf56`, `created` populated, 16 GiB);
-  its CPU suite with the reader plugin on `PYTHONPATH` gives 172 passed,
-  3 failed, matching the audit build. QSA and SM120 rebuild on their tips.
+- Image builds: `flashnext:bf16` is currently `5f8194628a76`, built at the
+  branch tip `8e7739f9d28053347fbb33361f384b9542a7ba45` with the documented OCI
+  arguments and the build-time provenance guard (`created` populated). The
+  predecessor `185483ea993a` (revision `c4dd2896e5…`) is deleted. QSA and SM120
+  ended `DISK_ABORT` at 32 GiB free, so they have no image and their GPU
+  verification stays open. Summary
+  `/srv/work/flashnext/logs/build-final-summary.txt`.
   A documentation commit after an image build is expected and does not require
   a rebuild: the guard hashes guarded modules only, and this bullet names the
-  head the image was built from. No model start, inference, benchmark, or
-  production change has been performed. Both GPUs are visible in NVML (Blackwell
-  at PCI `4b:00.0`, driver 615.78.08); the CDI
+  head the image was built from. The image was started on the Blackwell in an
+  operator-authorized window and passed startup, smoke, and NIXL warm-repeat
+  tests; the measured numbers and report paths are in
+  `docker/pennyroyal/FLASHNEXT-VARIANTS.md`. Both GPUs are visible in NVML
+  (Blackwell at PCI `4b:00.0`, driver 615.78.08); the CDI
   `~/.config/cdi/nvidia.com-gpu-blackwell.json` exposes only the Blackwell, and
   `podman run --device nvidia.com/gpu=1 ... nvidia-smi -L` confirms it.
   Checkpoint revision and PLE table digest are verified and documented.
@@ -172,20 +176,25 @@ examples, tests, and documentation have been updated together:
   `test/registered/unit/pennyroyal/`.
 
 Do not edit or restart the production Pennyroyal container as part of this
-experiment.
+experiment. Production lifecycle goes through the declared owner adapter in
+`/srv/luni/luni-llmops-linux/stacks/llm/orcarouter-pennyroyal/bin/run-orcarouter-pennyroyal.sh`
+(`--check`, `--start`, `--wait-until-ready`) and only inside a window the
+operator opens; on 2026-10-21 the operator did exactly that for the BF16 test,
+and production was restored from its declared profile afterwards.
 
 ## Remaining work
 
 1. Build `flashnext:qsa` and `flashnext:sm120` at their branch tips using the
-   documented OCI arguments, then inspect labels. BF16 is done
-   (`185483ea993a`); the images must be rebuilt again after any further guarded
-   module change, because the reader guard is source-hashed.
+   documented OCI arguments, then inspect labels. They aborted on free disk
+   (32 GiB), so free space first. BF16 is done (`5f8194628a76`); the images must
+   be rebuilt again after any further guarded module change, because the reader
+   guard is source-hashed.
 2. CUDA byte-parity/graph tests for the optional SM120 writer and runtime
    correctness checks require the RTX PRO 6000 Blackwell and verified CDI.
-3. Do not run benchmarks or change production. GPU start, readiness, and
-   inference checks are blocked until the target GPU and CDI are available,
-   and the production engine currently holds 93.9 GiB of the card, so a start
-   test needs a maintenance window.
+3. Runtime start, smoke, and NIXL warm-repeat verification for BF16 are done and
+   documented. Engine performance benchmarks still need a quiet window, and
+   production stays on its declared profile: no benchmark and no production
+   change without the operator's window.
 4. `docker/pennyroyal/AGENT-REVIEW-BENCH.md` is the verification point for
    merge-gate reviewer selection, with `tools/agent-bench/` as runner, prompt,
    ground truth, and scorecard. One benchmark set runs at a time, never
@@ -194,10 +203,12 @@ experiment.
 
 ## Live state
 
-- `nvidia-smi` lists the RTX 3500 Ada and the RTX PRO 6000 Blackwell; the
-  production `luni-llm-orcarouter` container is up on the Blackwell and was not
-  touched. No model start, restart, inference, or benchmark was run for this
-  experiment.
+- `nvidia-smi` lists the RTX 3500 Ada and the RTX PRO 6000 Blackwell. The
+  BF16 test container ran on the Blackwell, passed its tests, and was stopped
+  and removed. Production `luni-llm-orcarouter` was restarted through the owner
+  adapter with `PENNY_PLE_BACKEND=nvme` and is healthy on port 30000; the
+  measured restore numbers are in
+  `docker/pennyroyal/FLASHNEXT-VARIANTS.md`.
 - The base-profile changes and both variant branches are committed and pushed.
   The prompt branch remains
   `e6fb2fa29340bcd3ab7310599e0ab6a67171863f`.
