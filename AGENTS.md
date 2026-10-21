@@ -8,13 +8,14 @@ before changing this worktree; verify the live Git state and GPU again.
 - No new Git repository was created. The source repository is the existing
   Pennyroyal/SGLang clone at `/srv/work/flashnext/pennyroyal`.
 - The active Git worktree is `/srv/work/flashnext/worktrees/bf16`,
-  branch `flashnext/bf16`. This handover's rename work started from
+  branch `flashnext/bf16`. The naming update is commit
+  `ff702d2cd2edc42da09b76ee778fd37678b085cf`, based on
   `ecf63dc72e24df52bb2dd522ab2b9baf2e1cf936`.
 - Worktree Git metadata lives in
   `/srv/work/flashnext/pennyroyal/.git/worktrees/bf16`.
 - Upstream remote `origin` is `jpezzulli/sglang-rtxpro6000`. The user-owned
   public fork is `thomasdenk79-cyber/sglang-rtxpro6000`; its
-  `flashnext/bf16` ref will contain this experiment. Push experiment commits
+  `flashnext/bf16` ref contains this experiment. Push experiment commits
   to that fork, never to Pennyroyal upstream.
 - The requested experiment prompt is saved in
   `/srv/luni/luni-llmops-linux`, branch `exp/pennyroyal-tuning`, at
