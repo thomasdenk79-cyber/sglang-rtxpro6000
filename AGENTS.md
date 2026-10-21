@@ -8,8 +8,9 @@ before changing this worktree; verify the live Git state and GPU again.
 - Active worktree: `/srv/work/flashnext/worktrees/bf16`, branch
   `flashnext/bf16`; profile and OCI metadata are pushed to the user fork.
 - The shared FR-Spec profile is implemented:
-  native 262,144 context, eight-request ceiling, automatic Mamba/KV sizing,
-  NVMe BF16 PLE, and aligned native/container launchers.
+  524,288 context through the qualified YaRN 2.0 override, eight-request
+  ceiling, automatic Mamba/KV sizing, NVMe BF16 PLE, and aligned
+  native/container launchers.
 - `flashnext/qsa` and `flashnext/sm120` now exist as independent branches,
   both based on this profile. Their implementation and test status is recorded
   in `docker/pennyroyal/FLASHNEXT-VARIANTS.md`.
@@ -137,7 +138,9 @@ same settings and keep their argv/NIXL identity in sync:
 
 - TP=1; ModelOpt NVFP4 weights; FP8 E4M3 KV.
 - Selected Swift NVFP4 + original BF16 PLE checkpoint; NVMe PLE offload.
-- Native context 262144 with no YaRN override.
+- Context 524288 through the qualified YaRN override (`factor 2.0` over the
+  checkpoint's native 262144 positions), passed as
+  `--json-model-override-args`.
 - 32 GB HiCache; L2 enabled; NIXL + NVMe L3 enabled, `page_first`,
   `kernel`, `write_through`.
 - Maximum 8 requests (a ceiling, not a target batch); preserve FR-Spec,
@@ -145,7 +148,7 @@ same settings and keep their argv/NIXL identity in sync:
 - Do not pass `--max-total-tokens` or `--max-mamba-cache-size` by default;
   both remain operator overrides, and the engine sizes the pools automatically.
 - Keep PLE-on-NVMe and HiCache/NIXL-L3 as distinct storage configurations.
-- Do not change model weights or KV dtype; no YaRN or experimental NVFP4-KV.
+- Do not change model weights or KV dtype; no experimental NVFP4-KV.
 - Do not add experimental scheduler behavior to `bf16`.
 
 The plain non-FR-Spec Flash-Next recipes intentionally retain their earlier

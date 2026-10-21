@@ -113,7 +113,7 @@ TOKEN_MAP="$IMAGE_CONFIGS/frspec/flash-next-64k.pt"
 # the host may edit.
 ADAPTIVE_CONFIG="$IMAGE_CONFIGS/adaptive-next.json"
 
-CONTEXT_LENGTH=262144
+CONTEXT_LENGTH=524288
 PAGE_SIZE=64
 if [[ ! "$TP_SIZE" =~ ^[1-9][0-9]*$ ]]; then
   echo "TP_SIZE must be a positive integer" >&2
@@ -214,6 +214,7 @@ source "$IMAGE_CONFIGS/ple-backend.sh"
 # an uncapped FR-Spec pool has not been measured.
 configure_max_total_tokens
 
+TARGET_OVERRIDES='{"text_config":{"rope_parameters":{"mrope_interleaved":true,"mrope_section":[11,11,10],"rope_type":"yarn","rope_theta":10000000,"partial_rotary_factor":0.25,"factor":2.0,"original_max_position_embeddings":262144}}}'
 printf 'Pennyroyal profile: Flash-Next FR-Spec\n  runtime: %s\n  target: %s\n  token map: %s\n  cache root: %s\n  NIXL root: %s\n' \
   "$SGLANG_EXE" "$TARGET_MODEL" "$TOKEN_MAP" "$CACHE_BASE" "${NIXL_STORAGE_BASE:-off}"
 echo "Verifying the pinned FR-Spec map, tokenizer and adaptive MTP policy..."
@@ -246,7 +247,7 @@ if [[ "$NIXL" == on ]]; then
   echo "Deriving NIXL namespace; checkpoint identity hashing may take time..."
   NIXL_STORAGE="$("$NAMESPACE_HELPER" \
     --base-root "$NIXL_STORAGE_BASE" \
-    --slug "qwen3_8_flash_next_frspec_262144_nextn_${SGLANG_REV}" \
+    --slug "qwen3_8_flash_next_frspec_524k_nextn_${SGLANG_REV}" \
     --git-repo "$REPO_ROOT" \
     --model "target=$TARGET_MODEL" \
     --field "chat_template_sha256=$CHAT_TEMPLATE_SHA" \
@@ -307,7 +308,7 @@ launch_args=(serve \
   --dtype "$COMPUTE_DTYPE" --quantization modelopt_fp4 --kv-cache-dtype "$KV_DTYPE" \
   --mem-fraction-static 0.981 \
   "${TOKEN_CAP_ARGS[@]}" --warmups=structured_output \
-  --context-length "$CONTEXT_LENGTH" \
+  --context-length "$CONTEXT_LENGTH" --json-model-override-args "$TARGET_OVERRIDES" \
   --page-size "$PAGE_SIZE" --max-running-requests "$MAX_RUNNING_REQUESTS" --sleep-on-idle \
   --chunked-prefill-size "$PREFILL_CHUNK_SIZE" \
   --mamba-radix-cache-strategy extra_buffer --mamba-ssm-dtype "$MAMBA_SSM_DTYPE" \
