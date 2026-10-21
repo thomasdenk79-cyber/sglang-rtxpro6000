@@ -6,9 +6,9 @@ before changing this worktree; verify the live Git state and GPU again.
 ## Current status
 
 - Active worktree: `/srv/work/flashnext/worktrees/bf16`, branch
-  `flashnext/bf16`, currently based at
-  `96a68e7f55fe8ee0cee3cd33c55161468dd20a18`.
-- The shared FR-Spec profile is implemented locally but not committed:
+  `flashnext/bf16`; profile commit `889268c66461972c32aaebdfc5480996f2b3c6bd`
+  is pushed to the user fork.
+- The shared FR-Spec profile is implemented:
   native 262,144 context, eight-request ceiling, automatic Mamba/KV sizing,
   NVMe BF16 PLE, and aligned native/container launchers.
 - Focused CPU checks: 51 passed, 1 deselected; shell syntax and
@@ -17,8 +17,7 @@ before changing this worktree; verify the live Git state and GPU again.
 - No image build, model start, inference, benchmark, or production change has
   been performed. The visible GPU is an RTX 3500 Ada, not the target RTX PRO
   6000 Blackwell; `pennyroyal.service` is inactive.
-- Finalize and push this base before creating `flashnext/qsa` and
-  `flashnext/sm120`.
+- Create `flashnext/qsa` and `flashnext/sm120` from the finalized base.
 
 ## Repository and branches
 
@@ -135,12 +134,10 @@ experiment.
 
 ## Remaining work
 
-1. Validate the profile diff, then commit and push the implemented
-   `flashnext/bf16` changes to the user-owned fork.
-2. Verify the prepared checkpoint's full Hub provenance and the end-checkpoint
+1. Verify the prepared checkpoint's full Hub provenance and the end-checkpoint
    PLE byte identity; provenance remains unresolved.
-3. Create `flashnext/qsa` and `flashnext/sm120` independently from
-   the finalized base commit. Selectively review SGLang PRs #41173, #41175,
+2. Create `flashnext/qsa` and `flashnext/sm120` independently from
+   `889268c66461972c32aaebdfc5480996f2b3c6bd`. Selectively review SGLang PRs #41173, #41175,
    and #43135 for variant 1; PR #35 and relevant AIUEO52 changes for variant 2.
    Record accepted/equivalent/incompatible/omitted changes and rationale.
 4. Prepare reproducible Podman build profiles and OCI source labels; use the
@@ -154,8 +151,8 @@ experiment.
 - `nvidia-smi` lists only the RTX 3500 Ada; the RTX PRO 6000 Blackwell remains
   absent. `pennyroyal.service` is inactive. No model start, restart, inference,
   or benchmark was run.
-- The experiment worktree has the uncommitted base-profile changes listed
-  above. The prompt branch remains
+- The base-profile changes are committed and pushed; `flashnext/qsa` and
+  `flashnext/sm120` have not yet been created. The prompt branch remains
   `e6fb2fa29340bcd3ab7310599e0ab6a67171863f`.
 - The LiteLLM and observability containers are separate from this source
   change; do not alter them as part of the experiment.
