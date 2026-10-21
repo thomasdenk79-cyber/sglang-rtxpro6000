@@ -73,7 +73,7 @@ def test_both_next_recipes_bind_capacity_to_arguments_and_namespace(recipe):
     assert '--field "max_running_requests=$MAX_RUNNING_REQUESTS"' in source
     assert '--field "max_mamba_cache_size=$MAMBA_CACHE_SIZE_ID"' in source
     if recipe == "serve-flash-next-frspec.sh":
-        assert "CONTEXT_LENGTH=262144" in source
+        assert "CONTEXT_LENGTH=524288" in source
 
 
 def test_27b_recipe_keeps_its_own_capacity():
