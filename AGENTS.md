@@ -49,13 +49,14 @@ before changing this worktree; verify the live Git state and GPU again.
   `ff702d2cd2edc42da09b76ee778fd37678b085cf`, based on
   `ecf63dc72e24df52bb2dd522ab2b9baf2e1cf936`; later work is recorded in the
   current-status section above.
-- Current variant branches, each pushed to the user fork and verified with
-  `git cat-file -t` after the previous two SHAs were found to be transcribed
-  rather than copied: `flashnext/bf16` at
-  `1d3b74e78069ae3ea78f98573025a0dcd24f452e`, `flashnext/qsa` at
-  `3407d5d84be123823106982541d7dbe4dcc0b549`, and `flashnext/sm120` at
-  `403f1da19d5d7247678f2dcda401ae78b447f88c`. The last commit on each branch is
-  the source-guard audit; the base profile/metadata implementation is
+- Current variant branches, each pushed to the user fork and each verified with
+  `git cat-file -t` after two recorded SHAs turned out to be transcribed rather
+  than copied: `flashnext/bf16` at
+  `c6b712a100fd9e1bc2ce1375b5d93e1e206499d8`, `flashnext/qsa` at
+  `060793465fbca866330b1ae827925079e6cec9b1`, and `flashnext/sm120` at
+  `78902bb6bcb9fc00e089c201c8b91ba17fbff643`. Each branch tip is the build-time
+  provenance guard, one commit above the source-guard audit; the base
+  profile/metadata implementation is
   `760b2d6198e2104f8d7d6e7ee1d6448d1d253325`.
 - Worktree Git metadata lives in
   `/srv/work/flashnext/pennyroyal/.git/worktrees/bf16`.
@@ -175,7 +176,14 @@ experiment.
 2. CUDA byte-parity/graph tests for the optional SM120 writer and runtime
    correctness checks require the RTX PRO 6000 Blackwell and verified CDI.
 3. Do not run benchmarks or change production. GPU start, readiness, and
-   inference checks are blocked until the target GPU and CDI are available.
+   inference checks are blocked until the target GPU and CDI are available,
+   and the production engine currently holds 93.9 GiB of the card, so a start
+   test needs a maintenance window.
+4. `docker/pennyroyal/AGENT-REVIEW-BENCH.md` is the verification point for
+   merge-gate reviewer selection, with `tools/agent-bench/` as runner, prompt,
+   ground truth, and scorecard. One benchmark set runs at a time, never
+   alongside builds or other benchmark sets; engine performance benchmarks
+   follow in a quiet window after the reviewer set.
 
 ## Live state
 
