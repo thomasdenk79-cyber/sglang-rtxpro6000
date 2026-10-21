@@ -110,6 +110,7 @@ ARG PENNYROYAL_BASE
 ARG SGLANG_UPSTREAM_REFERENCE
 ARG INTEGRATED_PATCHES
 ARG CHECKPOINT_REVISION
+ARG PLE_TABLE_SHA256
 ARG BUILD_TIMESTAMP
 ARG FLASHNEXT_VARIANT
 # HiCache compiles its native SHA helper on first use and links libcrypto.
@@ -125,7 +126,8 @@ LABEL org.opencontainers.image.title="Pennyroyal SGLang for RTX PRO 6000" \
       io.flashnext.pennyroyal-base="${PENNYROYAL_BASE}" \
       io.flashnext.sglang-upstream="${SGLANG_UPSTREAM_REFERENCE}" \
       io.flashnext.integrated-patches="${INTEGRATED_PATCHES}" \
-      io.flashnext.checkpoint-revision="${CHECKPOINT_REVISION}"
+      io.flashnext.checkpoint-revision="${CHECKPOINT_REVISION}" \
+      io.flashnext.ple-table-sha256="${PLE_TABLE_SHA256}"
 COPY --from=build /opt/pennyroyal /opt/pennyroyal
 # The venv is a symlink farm onto the uv-managed interpreter; it lives in the
 # build stage because only uv there writes it, so the interpreter itself is the
