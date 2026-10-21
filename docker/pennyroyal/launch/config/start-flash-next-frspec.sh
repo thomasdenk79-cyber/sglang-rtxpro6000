@@ -126,7 +126,8 @@ KV_DTYPE=fp8_e4m3
 MAMBA_SSM_DTYPE=bfloat16
 MAMBA_CONV_DTYPE=bfloat16
 MAMBA_TRACK_INTERVAL=64
-PREFILL_CHUNK_SIZE=4096
+PREFILL_CHUNK_SIZE=8192
+PREFILL_DECODE_INTERVAL=4
 if [[ ! "$HICACHE_SIZE_GB" =~ ^[1-9][0-9]*$ ]]; then
   echo "HICACHE_SIZE_GB must be a positive integer number of GB, got '$HICACHE_SIZE_GB'" >&2
   exit 1
@@ -285,6 +286,7 @@ if [[ "$NIXL" == on ]]; then
     "${PLE_NAMESPACE_ARGS[@]}" \
     --field "qsa_compressed_hicache=true" \
     --field "chunked_prefill_size=$PREFILL_CHUNK_SIZE" \
+    --field "prefill_decode_interval=$PREFILL_DECODE_INTERVAL" \
     --field "torch_version=$TORCH_VERSION" \
     --field "cuda_arch=12.0")"
   export SGLANG_HICACHE_NIXL_BACKEND_STORAGE_DIR="$NIXL_STORAGE"
@@ -313,6 +315,7 @@ launch_args=(serve \
   --context-length "$CONTEXT_LENGTH" --json-model-override-args "$TARGET_OVERRIDES" \
   --page-size "$PAGE_SIZE" --max-running-requests "$MAX_RUNNING_REQUESTS" --sleep-on-idle \
   --chunked-prefill-size "$PREFILL_CHUNK_SIZE" \
+  --prefill-decode-interval "$PREFILL_DECODE_INTERVAL" \
   --mamba-radix-cache-strategy extra_buffer --mamba-ssm-dtype "$MAMBA_SSM_DTYPE" \
   "${MAMBA_CACHE_ARGS[@]}" --gdn-mtp-cache-mode none \
   --linear-attn-decode-backend flashinfer --linear-attn-prefill-backend flashinfer \

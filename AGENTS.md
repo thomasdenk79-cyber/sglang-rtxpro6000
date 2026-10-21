@@ -113,6 +113,9 @@ same settings and keep their argv/NIXL identity in sync:
 - TP=1; ModelOpt NVFP4 weights; FP8 E4M3 KV.
 - Selected Swift NVFP4 + original BF16 PLE checkpoint; NVMe PLE offload.
 - Native context 262144 with no YaRN override.
+- Chunked prefill 8192 tokens, with `--prefill-decode-interval 4` so four
+  decode rounds run after a prefill batch before the next prefill is
+  scheduled.
 - 32 GB HiCache; L2 enabled; NIXL + NVMe L3 enabled, `page_first`,
   `kernel`, `write_through`.
 - Maximum 8 requests (a ceiling, not a target batch); preserve FR-Spec,
