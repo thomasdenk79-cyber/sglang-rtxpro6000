@@ -5,6 +5,11 @@ before changing this worktree; verify the live Git state and GPU again.
 
 ## Current status
 
+- The fused FP8 KV writer (Pennyroyal #35) is enabled by the recipe: both
+  FR-Spec launchers export SGLANG_KV_FP8_FUSED_STORE defaulting to 1, so
+  SGLANG_KV_FP8_FUSED_STORE=0 is the way back to the two-kernel path. The
+  gate needs CUDA, FP8 E4M3 KV and NHD layout, all satisfied by the profile;
+  GPU byte-parity and CUDA graph replay are still unmeasured.
 - The shared FR-Spec profile runs the qualified 524,288 context through the
   YaRN `factor 2.0` override, with an eight-request ceiling, automatic
   Mamba/KV sizing, and PLE on NVMe.

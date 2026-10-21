@@ -94,6 +94,7 @@ MAMBA_TRACK_INTERVAL=64
 PREFILL_CHUNK_SIZE=8192
 PREFILL_DECODE_INTERVAL=4
 PENNY_PLE_BACKEND="${PENNY_PLE_BACKEND:-nvme}"
+export SGLANG_KV_FP8_FUSED_STORE="${SGLANG_KV_FP8_FUSED_STORE:-1}"
 for path in "$SGLANG_EXE" "$PYTHON"; do
   [[ -x "$path" ]] || { echo "Required executable missing: $path" >&2; exit 1; }
 done

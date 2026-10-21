@@ -8,7 +8,7 @@ which selects the matching image tag.
 |---|---|---|---|
 | BF16 | `flashnext/bf16` | Shared baseline | `e6ffa59942fc886d10aefa3d8396995806569dac` |
 | QSA | `flashnext/qsa` | Mamba checkpoint-grid prefill alignment | `afb6e9d0a14d449e2b0e8075a0f6b92595cd0822` |
-| SM120 | `flashnext/sm120` | Optional fused FP8 KV writer | `78a05b2113ebaea3bb7f971f59c42a6d27df2820` |
+| SM120 | `flashnext/sm120` | Fused FP8 KV writer, enabled in the recipe | `78a05b2113ebaea3bb7f971f59c42a6d27df2820` |
 
 ## Patch matrix
 
@@ -20,7 +20,7 @@ which selects the matching image tag.
 | SGLang #41173, QSA metadata fusion | Deferred | Deferred | Deferred | Patch was not a safe fit for this fork's metadata path; GPU graph verification is unavailable |
 | SGLang #41175, NEXTN draft/verify fusion | Deferred | Deferred | Deferred | API drift prevents a clean port; GPU correctness verification is unavailable |
 | SGLang #43135, Mamba chunk alignment | Not included | Adapted | Not included | Aligns chunked-prefill cuts to the Mamba checkpoint grid |
-| Pennyroyal #35, fused FP8 KV writer | Not included | Not included | Included, off by default | Enable only with `SGLANG_KV_FP8_FUSED_STORE=1`; CUDA parity and graph tests remain unverified |
+| Pennyroyal #35, fused FP8 KV writer | Not included | Not included | Included, on in the recipe | The recipe exports `SGLANG_KV_FP8_FUSED_STORE=1`; `-e SGLANG_KV_FP8_FUSED_STORE=0` restores the two-kernel path. Profile is CUDA, FP8 E4M3 KV, NHD layout, no HND, so the gate is satisfied; CUDA parity and graph tests remain unverified |
 | AIUEO52 DG1 draft-MoE GEMV | Already present | Inherited | Inherited | Present in shared source history; not duplicated |
 | AIUEO52 DT1 draft-tail patch | Deferred | Deferred | Deferred | Speculative API mismatch |
 | Cache-aware session residency/hysteresis | Not added | Not added | Not added | Existing HiCache supports async prefetch; no new scheduler policy was introduced |
