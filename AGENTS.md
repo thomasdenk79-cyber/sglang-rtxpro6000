@@ -1,20 +1,20 @@
-# Flash-Next experiment handover
+# Flash-Next experiments
 
-This file is the continuation point for the Qwen3.8 Flash-Next experiment.
-Read it before changing this worktree; verify the live Git state and GPU again.
+This file is the continuation point for the Qwen3.8 Flash-Next work. Read it
+before changing this worktree; verify the live Git state and GPU again.
 
 ## Repository and branches
 
 - No new Git repository was created. The source repository is the existing
-  Pennyroyal/SGLang clone at `/srv/work/flashnext-sources/pennyroyal`.
-- The active Git worktree is
-  `/srv/work/flashnext-sources/worktrees/base-new`, branch `llm/base-new`,
-  currently at `7b385d564b2ce90adfe016774a732e0b5d659d1a`.
+  Pennyroyal/SGLang clone at `/srv/work/flashnext/pennyroyal`.
+- The active Git worktree is `/srv/work/flashnext/worktrees/bf16`,
+  branch `flashnext/bf16`. This handover's rename work started from
+  `ecf63dc72e24df52bb2dd522ab2b9baf2e1cf936`.
 - Worktree Git metadata lives in
-  `/srv/work/flashnext-sources/pennyroyal/.git/worktrees/base-new`.
+  `/srv/work/flashnext/pennyroyal/.git/worktrees/bf16`.
 - Upstream remote `origin` is `jpezzulli/sglang-rtxpro6000`. The user-owned
   public fork is `thomasdenk79-cyber/sglang-rtxpro6000`; its
-  `llm/base-new` ref was verified at the same commit. Push experiment commits
+  `flashnext/bf16` ref will contain this experiment. Push experiment commits
   to that fork, never to Pennyroyal upstream.
 - The requested experiment prompt is saved in
   `/srv/luni/luni-llmops-linux`, branch `exp/pennyroyal-tuning`, at
@@ -22,6 +22,10 @@ Read it before changing this worktree; verify the live Git state and GPU again.
   `stacks/llm/orcarouter-pennyroyal/docs/EXPERIMENT-PROMPT.md`.
 - The project repository was not extracted from the monorepo; the source
   worktree is a separate checkout used for the three SGLang variants.
+- Short names are intentional: `flashnext/bf16` is the common base,
+  `flashnext/qsa` covers upstream QSA/NEXTN work, and `flashnext/sm120`
+  covers SM120 kernel experiments. Container tags use the same suffixes:
+  `flashnext:bf16`, `flashnext:qsa`, and `flashnext:sm120`.
 
 ## Selected checkpoint direction
 
@@ -62,7 +66,7 @@ profile. No model files were modified by prior work.
 - SGLang comparison: tag `v0.5.22`,
   `baa9befa381511cd4d56f83980951e5a45fffc6d`; current upstream `main` was
   separately fetched at `c1c287a42928495166e14dbcef31b9e1f1dac199`.
-- `llm/base-new` currently has:
+- `flashnext/bf16` currently has:
   - `b9652e5e4`: targeted Pennyroyal PR #79 correctness/HiCache-fence port.
   - `99a354f1d`: PR #86 automatic FR-Spec KV sizing.
   - `7b385d564`: PR #76 FP8-PLE transplant/verifier tooling (keep the tooling,
@@ -89,7 +93,7 @@ together and keep their argv/NIXL identity in sync:
   startup output.
 - Keep PLE-on-NVMe and HiCache/NIXL-L3 as distinct storage configurations.
 - Do not change model weights or KV dtype; no YaRN or experimental NVFP4-KV.
-- Do not add experimental scheduler behavior to `base-new`.
+- Do not add experimental scheduler behavior to `bf16`.
 
 At handover the recipes still use 524288 context, YaRN overrides, 4 requests,
 and an explicit Mamba cache size of 24. `server_args.py` defaults
@@ -110,9 +114,9 @@ experiment.
 
 1. Verify the prepared checkpoint's full provenance and FR-Spec tokenizer
    compatibility; preserve the exact tokenizer evidence above.
-2. Implement the shared profile in `llm/base-new`; update targeted tests and
+2. Implement the shared profile in `flashnext/bf16`; update targeted tests and
    build/start documentation, then commit and push to the user-owned fork.
-3. Create `llm/experimental-1` and `llm/experimental-2` independently from
+3. Create `flashnext/qsa` and `flashnext/sm120` independently from
    the finalized base commit. Selectively review SGLang PRs #41173, #41175,
    and #43135 for variant 1; PR #35 and relevant AIUEO52 changes for variant 2.
    Record accepted/equivalent/incompatible/omitted changes and rationale.
@@ -127,7 +131,7 @@ experiment.
 - `nvidia-smi` lists only the RTX 3500 Ada; the RTX PRO 6000 Blackwell remains
   absent. `pennyroyal.service` is inactive. No model start, restart, inference,
   or benchmark was run.
-- The worktree was clean at `7b385d564`; the prompt branch was clean at
+- The worktree was clean at `ecf63dc72` before the naming update; the prompt branch was clean at
   `e6fb2fa29340bcd3ab7310599e0ab6a67171863f`.
 - The LiteLLM and observability containers are separate from this source
   change; do not alter them as part of the experiment.
