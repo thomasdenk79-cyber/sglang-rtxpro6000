@@ -5,19 +5,23 @@ before changing this worktree; verify the live Git state and GPU again.
 
 ## Current status
 
-- Active worktree: `/srv/work/flashnext/worktrees/bf16`, branch
-  `flashnext/bf16`; profile commit `889268c66461972c32aaebdfc5480996f2b3c6bd`
-  is pushed to the user fork.
-- The shared FR-Spec profile is implemented:
-  native 262,144 context, eight-request ceiling, automatic Mamba/KV sizing,
-  NVMe BF16 PLE, and aligned native/container launchers.
-- Focused CPU checks: 51 passed, 1 deselected; shell syntax and
-  `git diff --check` pass. The deselected legacy source-guard test has a stored
-  hash mismatch for an unrelated, unmodified QSA module.
-- No image build, model start, inference, benchmark, or production change has
-  been performed. The visible GPU is an RTX 3500 Ada, not the target RTX PRO
-  6000 Blackwell; `pennyroyal.service` is inactive.
-- Create `flashnext/qsa` and `flashnext/sm120` from the finalized base.
+- Active worktree: `/srv/work/flashnext/worktrees/sm120`, branch
+  `flashnext/sm120`, based on the finalized BF16 profile and handover commit
+  `e6ffa5994`.
+- Pennyroyal PR #35's fused BF16-to-FP8 KV writer is ported and explicitly
+  disabled by default (`SGLANG_KV_FP8_FUSED_STORE=0` in the startup profile).
+  CPU tests pass (55 passed, 29 CUDA-only skipped); GPU parity and graph replay
+  remain unverified here.
+- AIUEO52 DG1 one-token draft MoE GEMV is already present in the common source
+  history (`bdea2ce9c`) with its own optional control; it was not duplicated.
+  AIUEO52 DT1 draft-tail changes were reviewed but are not ported because the
+  patch does not apply cleanly to this fork's speculative APIs.
+- HiCache already has asynchronous NIXL prefetch and a host-memory token budget.
+  No new active-session residency/hysteresis scheduler was added; that behavior
+  is not validated and the target GPU is unavailable.
+- The launch profile is named `flashnext:sm120`. No image build, model start,
+  inference, benchmark, or production change has occurred. The visible GPU is
+  an RTX 3500 Ada, not the target RTX PRO 6000 Blackwell.
 
 ## Repository and branches
 
@@ -136,13 +140,13 @@ experiment.
 
 1. Verify the prepared checkpoint's full Hub provenance and the end-checkpoint
    PLE byte identity; provenance remains unresolved.
-2. Create `flashnext/qsa` and `flashnext/sm120` independently from
-   `889268c66461972c32aaebdfc5480996f2b3c6bd`. Selectively review SGLang PRs #41173, #41175,
-   and #43135 for variant 1; PR #35 and relevant AIUEO52 changes for variant 2.
-   Record accepted/equivalent/incompatible/omitted changes and rationale.
+2. Finalize the PR #35 port and `flashnext:sm120` startup profile.
+3. Decide whether AIUEO52 DT1 has a safe branch-specific port; current patch
+  cannot be applied directly and graph correctness needs a CUDA host.
 4. Prepare reproducible Podman build profiles and OCI source labels; use the
-   existing generic lifecycle tooling rather than a new manager.
-5. Do not run benchmarks. GPU start, readiness, and inference checks are
+  existing generic lifecycle tooling rather than a new manager.
+5. Update the shared patch matrix and align all three branch handovers.
+6. Do not run benchmarks. GPU start, readiness, and inference checks are
    blocked until the RTX PRO 6000 Blackwell is visible and its CDI mapping is
    verified.
 
@@ -151,8 +155,8 @@ experiment.
 - `nvidia-smi` lists only the RTX 3500 Ada; the RTX PRO 6000 Blackwell remains
   absent. `pennyroyal.service` is inactive. No model start, restart, inference,
   or benchmark was run.
-- The base-profile changes are committed and pushed; `flashnext/qsa` and
-  `flashnext/sm120` have not yet been created. The prompt branch remains
+- The BF16 base is committed and pushed; this SM120 branch includes the
+  changes described above. The prompt branch remains
   `e6fb2fa29340bcd3ab7310599e0ab6a67171863f`.
 - The LiteLLM and observability containers are separate from this source
   change; do not alter them as part of the experiment.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Pennyroyal Flash-Next with FR-Spec and the NIXL FILE tier: startup settings
-# for the flashnext:bf16 experiment image.
+# for the flashnext:sm120 experiment image.
 #
 # This is an ordinary SGLang startup script. Edit your settings below, then
 # start it: ./run.sh (this file is the launcher's default). The launcher mounts
@@ -45,6 +45,8 @@ NIXL=on
 # wins over that argument.
 MAX_RUNNING_REQUESTS="${MAX_RUNNING_REQUESTS:-8}"
 MAX_MAMBA_CACHE_SIZE="${MAX_MAMBA_CACHE_SIZE:-}"
+# Experimental fused BF16-to-FP8 KV writes; opt in only for focused testing.
+export SGLANG_KV_FP8_FUSED_STORE="${SGLANG_KV_FP8_FUSED_STORE:-0}"
 # ----------------------------------------------------------------------------
 
 export NUMPY_MADVISE_HUGEPAGE=0
