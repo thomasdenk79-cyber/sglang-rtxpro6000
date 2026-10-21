@@ -95,6 +95,10 @@ startup file. If using a sidecar for image processing, expose that GPU too
 and select its **container-visible** `cuda:N` index. The sidecar is not part
 of the tensor-parallel inference pair.
 
+The three Qwen3.8 Flash-Next experiment branches, patch matrix, shared runtime
+profile, and OCI image metadata are documented in
+[FLASHNEXT-VARIANTS.md](FLASHNEXT-VARIANTS.md).
+
 FR-Spec remains on when adaptive MTP is enabled. It narrows the draft
 vocabulary; adaptation changes draft length at C1. Concurrent batches keep
 FR-Spec with fixed four-token drafts.

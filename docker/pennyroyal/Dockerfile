@@ -105,14 +105,27 @@ RUN bash docker/pennyroyal/build-nixl.sh \
 
 FROM base AS runtime
 ARG SOURCE_REVISION
+ARG SOURCE_REPOSITORY=https://github.com/jpezzulli/sglang-rtxpro6000.git
+ARG PENNYROYAL_BASE
+ARG SGLANG_UPSTREAM_REFERENCE
+ARG INTEGRATED_PATCHES
+ARG CHECKPOINT_REVISION
+ARG BUILD_TIMESTAMP
+ARG FLASHNEXT_VARIANT
 # HiCache compiles its native SHA helper on first use and links libcrypto.
 # Keeping only the shared library makes a fresh cache fail at its first insert.
 RUN dnf install -y --setopt=install_weak_deps=False --nodocs openssl-devel \
     && dnf clean all
 LABEL org.opencontainers.image.title="Pennyroyal SGLang for RTX PRO 6000" \
-      org.opencontainers.image.source="https://github.com/jpezzulli/sglang-rtxpro6000" \
+      org.opencontainers.image.source="${SOURCE_REPOSITORY}" \
       org.opencontainers.image.revision="${SOURCE_REVISION}" \
-      org.opencontainers.image.licenses="Apache-2.0"
+      org.opencontainers.image.created="${BUILD_TIMESTAMP}" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      io.flashnext.variant="${FLASHNEXT_VARIANT}" \
+      io.flashnext.pennyroyal-base="${PENNYROYAL_BASE}" \
+      io.flashnext.sglang-upstream="${SGLANG_UPSTREAM_REFERENCE}" \
+      io.flashnext.integrated-patches="${INTEGRATED_PATCHES}" \
+      io.flashnext.checkpoint-revision="${CHECKPOINT_REVISION}"
 COPY --from=build /opt/pennyroyal /opt/pennyroyal
 # The venv is a symlink farm onto the uv-managed interpreter; it lives in the
 # build stage because only uv there writes it, so the interpreter itself is the
