@@ -35,9 +35,14 @@ approximately 100-GB BF16 PLE table, streamed from NVMe. HiCache is 32 GiB;
 NIXL L3 uses `page_first`, `kernel`, and `write_through`. PLE NVMe and NIXL
 remain separate storage paths.
 
-The local checkpoint's exact Hub revision and the BF16 PLE end-checkpoint byte
-provenance are not yet verified. Do not substitute the FP8-PLE transplant or
-claim a verified checkpoint revision until that evidence is recorded.
+Hugging Face metadata for the local model files and the model API confirm that
+`ukisai/Swift-1.5-Qwen3.8-Flash-Next-NVFP4` is at revision
+`3ff0520224f264a2d0ac4ab56ece8f2f13aadb38`, which is also the current Hub
+head. The prepared PLE stream manifest binds its source config and tensor index
+by SHA-256 and records a 102,400,491,520-byte BF16 table; its declared table
+digest, `f90a8563ba5939e5c0b0f6a57bd3a5f94c39126932f4f10eae98c3585e81434d`,
+matches the file. Carry both the Hub revision and PLE digest into image labels.
+Do not substitute the FP8-PLE transplant.
 
 ## Image builds and launch
 
@@ -48,7 +53,7 @@ branch and repository root, passing the exact branch `SOURCE_REVISION`, a UTC
 The checkpoint argument must not be guessed. Example shape:
 
 ```bash
- : "${CHECKPOINT_REVISION:?Set the verified checkpoint revision first}"
+CHECKPOINT_REVISION='ukisai/Swift-1.5-Qwen3.8-Flash-Next-NVFP4@3ff0520224f264a2d0ac4ab56ece8f2f13aadb38'
 SOURCE_REVISION="$(git rev-parse HEAD)"
 BUILD_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 podman build -f docker/pennyroyal/Dockerfile -t flashnext:bf16 \
@@ -58,6 +63,7 @@ podman build -f docker/pennyroyal/Dockerfile -t flashnext:bf16 \
   --build-arg SGLANG_UPSTREAM_REFERENCE=v0.5.22@baa9befa381511cd4d56f83980951e5a45fffc6d \
   --build-arg INTEGRATED_PATCHES="Pennyroyal #79,#86; profile; PR #76 tooling" \
   --build-arg CHECKPOINT_REVISION="$CHECKPOINT_REVISION" \
+  --build-arg PLE_TABLE_SHA256=f90a8563ba5939e5c0b0f6a57bd3a5f94c39126932f4f10eae98c3585e81434d \
   --build-arg BUILD_TIMESTAMP="$BUILD_TIMESTAMP" \
   --build-arg FLASHNEXT_VARIANT=bf16 .
 ```
