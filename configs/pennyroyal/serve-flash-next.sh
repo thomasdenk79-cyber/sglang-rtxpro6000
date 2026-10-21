@@ -55,6 +55,8 @@ if [[ ! "$HICACHE_SIZE_GB" =~ ^[1-9][0-9]*$ ]]; then
   exit 1
 fi
 source "$SCRIPT_DIR/chat-template.sh"
+MAX_RUNNING_REQUESTS="${MAX_RUNNING_REQUESTS:-4}"
+MAX_MAMBA_CACHE_SIZE="${MAX_MAMBA_CACHE_SIZE:-24}"
 source "$SCRIPT_DIR/request-capacity.sh"
 source "$SCRIPT_DIR/reasoning-effort.sh"
 source "$SCRIPT_DIR/tp-devices.sh"
@@ -200,17 +202,17 @@ else
     --field "hicache_mem_layout=page_first" \
     --field "mamba_ssm_dtype=$MAMBA_SSM_DTYPE" \
     --field "mamba_conv_dtype=$MAMBA_CONV_DTYPE" \
-    --field "max_mamba_cache_size=$MAX_MAMBA_CACHE_SIZE" \
+    --field "max_mamba_cache_size=$MAMBA_CACHE_SIZE_ID" \
     --field "max_running_requests=$MAX_RUNNING_REQUESTS" \
     --field "mamba_radix_cache_strategy=extra_buffer" \
     --field "mamba_track_interval=$MAMBA_TRACK_INTERVAL" \
     --field "linear_attn_decode_backend=flashinfer" \
     --field "linear_attn_prefill_backend=flashinfer" \
     --field "ple_offload_embedding=$PLE_OFFLOAD_EMBEDDING" \
-  "${PLE_NAMESPACE_ARGS[@]}" \
+    --field "target_model_overrides=$TARGET_OVERRIDES" \
+    "${PLE_NAMESPACE_ARGS[@]}" \
     --field "qsa_compressed_hicache=true" \
     --field "chunked_prefill_size=$PREFILL_CHUNK_SIZE" \
-    --field "target_model_overrides=$TARGET_OVERRIDES" \
     --field "torch_version=$TORCH_VERSION" \
     --field "cuda_arch=12.0")"
   export SGLANG_HICACHE_NIXL_BACKEND_STORAGE_DIR="$NIXL_STORAGE"
@@ -235,7 +237,7 @@ launch_args=(serve \
   --page-size "$PAGE_SIZE" --max-running-requests "$MAX_RUNNING_REQUESTS" --sleep-on-idle \
   --chunked-prefill-size "$PREFILL_CHUNK_SIZE" \
   --mamba-radix-cache-strategy extra_buffer --mamba-ssm-dtype "$MAMBA_SSM_DTYPE" \
-  --max-mamba-cache-size "$MAX_MAMBA_CACHE_SIZE" --gdn-mtp-cache-mode none \
+  "${MAMBA_CACHE_ARGS[@]}" --gdn-mtp-cache-mode none \
   --linear-attn-decode-backend flashinfer --linear-attn-prefill-backend flashinfer \
   --mamba-track-interval "$MAMBA_TRACK_INTERVAL" \
   --enable-hierarchical-cache --hicache-size "$HICACHE_SIZE_GB" --hicache-host-memory-mode cache \

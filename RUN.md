@@ -80,24 +80,31 @@ target checkpoint, so only the target model is required:
 
 ```bash
 cd "$REPO_ROOT"
-export TARGET_MODEL=/path/to/RadixArk-Qwen3.8-Flash-Next-NVFP4
+export TARGET_MODEL=/srv/ai/models/Swift-1.5-Qwen3.8-Flash-Next-BF16PLE
+export PENNY_PLE_BACKEND=nvme
+export PENNY_PLE_NVME_MODEL=/srv/ai/ple/data/orcarouter-bf16-ple
 "$REPO_ROOT/configs/pennyroyal/serve-flash-next-frspec.sh"
 ```
 
-The launcher verifies the bundled 65,536-ID FR-Spec map and reference tokenizer,
-then includes the map hash in the NIXL namespace. The reduced draft vocabulary
-leaves the target vocabulary and acceptance policy unchanged. Gabriel's
+The launcher verifies the bundled 65,536-ID FR-Spec map and accepts only the
+reference tokenizer or the verified Swift tokenizer. Their 248,077 token-ID
+entries and added-token records match; 5,008 deterministic edge/random strings
+produced identical token IDs despite different pre-tokenizer/decoder metadata.
+The Swift tokenizer SHA is `06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523`.
+The map hash is part of the NIXL namespace. The reduced draft vocabulary
+leaves target vocabulary IDs and acceptance policy unchanged. Gabriel's
 [`gabrielolympie/sglang-flashnext-sm120`](https://github.com/gabrielolympie/sglang-flashnext-sm120)
 is the source of the reduced-vocabulary work.
 
-The extra BF16 draft head uses 320 MiB. The recipe asks for no KV pool size:
-SGLang profiles the free GPU memory and fits the pool inside the static memory
-fraction the launch sets, before the graphs are captured. The qualified
-single-GPU boot reported 824,384 KV tokens, and that launch had asked for
-exactly that cap; the capacity an uncapped FR-Spec boot reaches here has not
-been measured. Context is 524,288 tokens with four concurrent requests and 24
-Mamba slots. During startup, confirm the token map, reduced draft head, graphs,
-and state pools in the resolved server output.
+The requested experiment profile uses the ModelOpt NVFP4 checkpoint with its
+original 102.4-GB BF16 PLE table streamed from NVMe, FP8 E4M3 KV, TP1, native
+262,144-token context, no additional YaRN override, 32 GB HiCache, and NIXL L3.
+It admits at most eight running requests; this is not a target batch size.
+Neither `MAX_TOTAL_TOKENS` nor `MAX_MAMBA_CACHE_SIZE` is set, so SGLang sizes
+both pools from available memory and reports the effective capacities. This
+profile has not yet been GPU-started or benchmarked. Confirm the token map,
+reduced draft head, selected NVMe table identity, graph tiers, and resolved
+state pools in startup output before inference.
 
 ## Launch 27B with DFlash2
 
@@ -160,7 +167,7 @@ normal request cleanup.
 
 | Profile | Configured host cache | Additional host use |
 |---|---:|---|
-| Flash-Next | 32 GB HiCache | Approximately 47.68 GiB for RAM-backed PLE |
+| Flash-Next | 32 GB HiCache | Baseline streams its ~100-GB BF16 PLE table from local NVMe |
 | 27B/DFlash2 | 96 GB HiCache | Model loading and runtime overhead |
 
 Process, driver, filesystem, and page-cache memory are additional. NVMe-backed
@@ -214,21 +221,21 @@ probe. Errors naming a real cache path need attention.
 
 Transformers may warn that the original Flash-Next configuration contains
 `mrope_interleaved` and `mrope_section` fields unknown to its default RoPE
-reader. SGLang retains the fields and selects the configured factor-2
-YaRN/mRoPE implementation. Keep them in the checkpoint configuration.
+reader. SGLang retains the checkpoint configuration. The experiment profile
+sets a native 262,144-token context and adds no YaRN override.
 
 For Flash-Next, confirm:
 
 - the resolved target/native-MTP KV token count with FP8 E4M3 dtypes; the
   824,384-token figure is a capped boot's request, not an automatic value;
-- four running requests and 24 Mamba slots by default, or six requests and 36
-  slots for the optional C6 profile, with zero intermediate speculative SSM;
+- a maximum of eight running requests and the runtime-sized Mamba pool, with
+  zero intermediate speculative SSM;
 - `FlashInferGDNKernel` decode/prefill and
   `none-mode WY output-only` verification/recovery;
 - QSA sparse decode through FlashInfer's wrapper resolving to XQA on SM120,
   `sgl-kernel` top-k, and MTP index sharing;
 - target and native-MTP MoE resolved to FlashInfer CUTLASS;
-- recovery graphs for batch sizes 1-4 by default, or 1-6 with C6; and
+- existing CUDA-graph batch tiers across concurrency levels C1-C8; and
 - attached KV, Mamba/PLE, and QSA HiCache pools.
 
 With online FP8 active, also confirm the row-wise FP8 projection signatures
@@ -305,8 +312,9 @@ Online FP8 is the automatic default of the Flash-Next recipes on exact SM120:
 a fresh or default launch needs no kernel switch. The saved private override
 `SGLANG_SM120_ONLINE_MXFP8=false` pins the original checkpoint path (and
 `=true` forces the conversion where eligibility would stay off); read
-[FP8.md](FP8.md) before using either. PLE placement stays a separate, explicit
-choice; the default recipe uses RAM-backed PLE:
+[FP8.md](FP8.md) before using either. PLE placement stays separate from online
+FP8. The non-FR and 27B recipes keep RAM-backed placement; the FR-Spec
+experiment defaults to NVMe PLE, with RAM as an explicit opt-out:
 
 ```bash
 export PENNY_PLE_BACKEND=ram
@@ -362,13 +370,13 @@ older FR-Spec boot that asked for exactly that cap; an uncapped capacity has
 not been measured here. See
 [RESULTS.md](RESULTS.md#explicit-1000000-token-capacity-option) for timings.
 
-## Optional six-request Flash-Next profile
+## Historical six-request measurements
 
-For longer concurrent conversations, Flash-Next can use six running requests
-and a larger shared KV pool while keeping 524,288 tokens per request. The
-FR-Spec defaults remain four requests and 24 Mamba slots with the KV pool
-sized automatically. Set the C6 values before launching either Flash-Next
-recipe:
+The C6 measurements below used an older 524,288-token profile. The current
+FR-Spec baseline uses native 262,144-token context, admits up to eight requests,
+and leaves Mamba and KV pool sizing to the runtime. These settings describe a
+six-request capacity override, not a reproduction of those historical
+measurements:
 
 ```bash
 export SGLANG_MM_PREPROCESS_DEVICE=cpu

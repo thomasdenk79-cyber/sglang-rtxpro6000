@@ -28,8 +28,8 @@ services:
       # torch's pinned-memory allocator instead of cudaHostRegister'd mmap.
       # Off (the default) keeps the native-Linux allocator.
       SGLANG_HICACHE_TORCH_PINNED_ALLOC: ${SGLANG_HICACHE_TORCH_PINNED_ALLOC:-false}
-      PENNY_PLE_BACKEND: ${PENNY_PLE_BACKEND:-ram}
-      PENNY_PLE_NVME_MODEL: ${PENNY_PLE_NVME_MODEL:-/models/flash-next-ple}
+      PENNY_PLE_BACKEND: ${PENNY_PLE_BACKEND:-}
+      PENNY_PLE_NVME_MODEL: ${PENNY_PLE_NVME_MODEL:-}
       # Online-FP8 kernel path: empty/unset is automatic (eligible Flash-Next
       # SM120 launches use the accepted rowwise-FP8 paths on their own); a
       # saved explicit false/true propagates unchanged as the private escape
@@ -52,8 +52,8 @@ services:
       # kernels. Empty keeps the Next startup files' qualified default (1); 0
       # opts out. The 27b profile uses Triton GDN and does not read it.
       FLASHINFER_GDN_FP16_ACCUM_MMA: ${FLASHINFER_GDN_FP16_ACCUM_MMA:-}
-      MAX_RUNNING_REQUESTS: ${MAX_RUNNING_REQUESTS:-4}
-      MAX_MAMBA_CACHE_SIZE: ${MAX_MAMBA_CACHE_SIZE:-24}
+      MAX_RUNNING_REQUESTS: ${MAX_RUNNING_REQUESTS:-}
+      MAX_MAMBA_CACHE_SIZE: ${MAX_MAMBA_CACHE_SIZE:-}
       MAX_TOTAL_TOKENS: ${MAX_TOTAL_TOKENS:-}
     volumes:
       - type: bind

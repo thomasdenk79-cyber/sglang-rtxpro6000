@@ -23,7 +23,7 @@ def run_capacity(**updates):
             "bash",
             "-c",
             'set -euo pipefail; source "$1/request-capacity.sh"; '
-            'printf "%s %s\\n" "$MAX_RUNNING_REQUESTS" "$MAX_MAMBA_CACHE_SIZE"',
+            'printf "%s %s\\n" "$MAX_RUNNING_REQUESTS" "$MAMBA_CACHE_SIZE_ID"',
             "bash",
             str(CONFIGS),
         ],
@@ -34,10 +34,10 @@ def run_capacity(**updates):
     )
 
 
-def test_defaults_remain_four_requests_and_24_states():
+def test_defaults_use_eight_requests_and_automatic_mamba_sizing():
     result = run_capacity()
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == "4 24"
+    assert result.stdout.strip() == "8 auto"
 
 
 def test_c6_is_explicit_and_independent_of_shared_token_cap():
@@ -46,6 +46,12 @@ def test_c6_is_explicit_and_independent_of_shared_token_cap():
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "6 36"
+
+
+def test_maximum_is_eight_requests():
+    result = run_capacity(MAX_RUNNING_REQUESTS="9")
+    assert result.returncode != 0
+    assert "MAX_RUNNING_REQUESTS must be between 1 and 8" in result.stderr
 
 
 @pytest.mark.parametrize("name", ["MAX_RUNNING_REQUESTS", "MAX_MAMBA_CACHE_SIZE"])
@@ -63,10 +69,11 @@ def test_both_next_recipes_bind_capacity_to_arguments_and_namespace(recipe):
     source = (CONFIGS / recipe).read_text()
     assert 'source "$SCRIPT_DIR/request-capacity.sh"' in source
     assert '--max-running-requests "$MAX_RUNNING_REQUESTS"' in source
-    assert '--max-mamba-cache-size "$MAX_MAMBA_CACHE_SIZE"' in source
+    assert '"${MAMBA_CACHE_ARGS[@]}"' in source
     assert '--field "max_running_requests=$MAX_RUNNING_REQUESTS"' in source
-    assert '--field "max_mamba_cache_size=$MAX_MAMBA_CACHE_SIZE"' in source
-    assert "CONTEXT_LENGTH=524288" in source
+    assert '--field "max_mamba_cache_size=$MAMBA_CACHE_SIZE_ID"' in source
+    if recipe == "serve-flash-next-frspec.sh":
+        assert "CONTEXT_LENGTH=262144" in source
 
 
 def test_27b_recipe_keeps_its_own_capacity():
@@ -75,14 +82,14 @@ def test_27b_recipe_keeps_its_own_capacity():
     assert "--max-running-requests 4" in source
 
 
-def test_compose_forwards_optional_next_capacity_with_existing_defaults():
+def test_compose_forwards_request_cap_and_leaves_mamba_sizing_automatic():
     container = REPO / "docker" / "pennyroyal"
     compose = yaml.safe_load((container / "compose.yaml").read_text())
     environment = compose["services"]["pennyroyal"]["environment"]
-    assert environment["MAX_RUNNING_REQUESTS"] == "${MAX_RUNNING_REQUESTS:-4}"
-    assert environment["MAX_MAMBA_CACHE_SIZE"] == "${MAX_MAMBA_CACHE_SIZE:-24}"
+    assert environment["MAX_RUNNING_REQUESTS"] == "${MAX_RUNNING_REQUESTS:-}"
+    assert environment["MAX_MAMBA_CACHE_SIZE"] == "${MAX_MAMBA_CACHE_SIZE:-}"
     assert environment["MAX_TOTAL_TOKENS"] == "${MAX_TOTAL_TOKENS:-}"
     example = (container / ".env.example").read_text()
-    assert "MAX_RUNNING_REQUESTS=4\n" in example
-    assert "MAX_MAMBA_CACHE_SIZE=24\n" in example
+    assert "MAX_RUNNING_REQUESTS=8\n" in example
+    assert "MAX_MAMBA_CACHE_SIZE=24\n" not in example
     assert "MAX_TOTAL_TOKENS=\n" in example

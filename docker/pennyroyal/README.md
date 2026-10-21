@@ -37,8 +37,9 @@ is copied out of the image and no image rebuild is needed.
 - Downloaded [target model files](../../BUILD.md#reference-and-measured-checkpoints).
   The 27B profile also needs its DFlash2 draft.
 - Writable cache directories owned by the UID/GID you will run as.
-- Enough host RAM: Flash-Next defaults to 32 GB HiCache plus about 48 GiB RAM
-  PLE; 27B defaults to 96 GB HiCache. Leave room for loading and the OS.
+- Enough host RAM: Flash-Next uses 32 GB HiCache; the FR-Spec experiment streams
+  its 102.4-GB BF16 PLE table from NVMe instead of pinning it in RAM.
+  27B defaults to 96 GB HiCache. Leave room for loading and the OS.
 - If using NIXL, a local filesystem supporting its O_DIRECT/io_uring path.
 
 <a id="configure-and-start"></a>
@@ -74,9 +75,12 @@ Create the host directories and make them writable by that identity.
 
 In the selected startup file, set `TARGET_MODEL` to its path **inside** the
 container. For example, if `/srv/models` is mounted at `/models`, the host's
-`/srv/models/MyCheckpoint` becomes `/models/MyCheckpoint`. The 27B startup
+`/srv/models/MyCheckpoint` becomes `/models/MyCheckpoint`. The FR-Spec profile
+uses `/srv/ai/models/Swift-1.5-Qwen3.8-Flash-Next-BF16PLE` and the prepared
+`/srv/ai/ple/data/orcarouter-bf16-ple` overlay; preserve those absolute paths
+with `--checkpoint-root /srv/ai/models --ple-root /srv/ai/ple`. The 27B startup
 also needs `DRAFT_MODEL`. RAM cache size, tensor-parallel size, request capacity,
-PLE placement and image preprocessing are in this startup file.
+PLE placement and image preprocessing are in the startup file.
 
 <a id="profiles-and-checks"></a>
 
@@ -97,11 +101,15 @@ FR-Spec with fixed four-token drafts.
 
 ## Start and verify
 
-Run from your launch-file folder, using the image tag from the release:
+For the `flashnext/bf16` experiment, do not use the downloaded v3.0.2
+startup files with the release image: the profile depends on helpers built from
+this branch. Its image has not been built yet; after building it, run:
 
 ```bash
-IMAGE='ghcr.io/jpezzulli/sglang-rtxpro6000:v3.0.2'
-./run.sh --image "$IMAGE" --startup config/start-flash-next-frspec.sh
+IMAGE='flashnext:bf16'
+./run.sh --image "$IMAGE" --startup config/start-flash-next-frspec.sh \
+  --models /srv/ai/models --checkpoint-root /srv/ai/models --ple-root /srv/ai/ple \
+  --nvme-ple
 ```
 
 The script runs `docker run` in the foreground and shows the server logs.

@@ -31,6 +31,8 @@
 #   --port HOST_PORT           published server port (default: 8001)
 #   --gpu IDS                  GPU id list, e.g. 0 or 0,1 (default: 0)
 #   --models DIR               host models root, mounted read-only at /models
+#   --checkpoint-root DIR      read-only bind at its same absolute container path
+#   --ple-root DIR             read-only bind at its same absolute container path
 #   --cache DIR                host durable cache root, mounted writable at /cache
 #   --nixl-root DIR            host NIXL root, mounted writable at /nixl
 #   --user UID:GID             identity owning the writable directories (default: 1000:1000)
@@ -50,6 +52,8 @@ STARTUP="${PENNYROYAL_STARTUP:-$SCRIPT_DIR/config/start-flash-next-frspec.sh}"
 # Empty means: use the NIXL config the selected startup script names itself.
 NIXL_CONFIG="${PENNYROYAL_NIXL_CONFIG:-}"
 HOST_MODELS_ROOT="${HOST_MODELS_ROOT:-/srv/models}"
+HOST_CHECKPOINT_ROOT="${HOST_CHECKPOINT_ROOT:-}"
+HOST_PLE_ROOT="${HOST_PLE_ROOT:-}"
 HOST_CACHE_BASE="${HOST_CACHE_BASE:-/var/cache/pennyroyal}"
 HOST_NIXL_STORAGE_BASE="${HOST_NIXL_STORAGE_BASE:-/srv/pennyroyal-nixl}"
 PORT="${PENNYROYAL_PORT:-8001}"
@@ -86,6 +90,10 @@ while (( $# )); do
     --gpu=*) GPU="${1#*=}"; shift ;;
     --models) HOST_MODELS_ROOT="${2:?--models needs a path}"; shift 2 ;;
     --models=*) HOST_MODELS_ROOT="${1#*=}"; shift ;;
+    --checkpoint-root) HOST_CHECKPOINT_ROOT="${2:?--checkpoint-root needs a path}"; shift 2 ;;
+    --checkpoint-root=*) HOST_CHECKPOINT_ROOT="${1#*=}"; shift ;;
+    --ple-root) HOST_PLE_ROOT="${2:?--ple-root needs a path}"; shift 2 ;;
+    --ple-root=*) HOST_PLE_ROOT="${1#*=}"; shift ;;
     --cache) HOST_CACHE_BASE="${2:?--cache needs a path}"; shift 2 ;;
     --cache=*) HOST_CACHE_BASE="${1#*=}"; shift ;;
     --nixl-root) HOST_NIXL_STORAGE_BASE="${2:?--nixl-root needs a path}"; shift 2 ;;
@@ -114,6 +122,20 @@ command -v docker >/dev/null 2>&1 || { echo "docker is required" >&2; exit 1; }
 }
 HOST_MODELS_ROOT="$(host_path "$HOST_MODELS_ROOT")"
 HOST_CACHE_BASE="$(host_path "$HOST_CACHE_BASE")"
+if [[ -n "$HOST_CHECKPOINT_ROOT" ]]; then
+  [[ -d "$HOST_CHECKPOINT_ROOT" && -r "$HOST_CHECKPOINT_ROOT" ]] || {
+    echo "Checkpoint root is missing or unreadable: $HOST_CHECKPOINT_ROOT" >&2
+    exit 1
+  }
+  HOST_CHECKPOINT_ROOT="$(host_path "$HOST_CHECKPOINT_ROOT")"
+fi
+if [[ -n "$HOST_PLE_ROOT" ]]; then
+  [[ -d "$HOST_PLE_ROOT" && -r "$HOST_PLE_ROOT" ]] || {
+    echo "PLE root is missing or unreadable: $HOST_PLE_ROOT" >&2
+    exit 1
+  }
+  HOST_PLE_ROOT="$(host_path "$HOST_PLE_ROOT")"
+fi
 
 docker_args=(
   run --rm --init
@@ -131,6 +153,12 @@ docker_args=(
 # working the same way: its own directory lands on /config (or /nixl-config).
 startup_dir="$(cd -- "$(dirname -- "$STARTUP")" && pwd)"
 docker_args+=(--volume "$startup_dir:/config:ro" --volume "$HOST_MODELS_ROOT:/models:ro")
+if [[ -n "$HOST_CHECKPOINT_ROOT" ]]; then
+  docker_args+=(--volume "$HOST_CHECKPOINT_ROOT:$HOST_CHECKPOINT_ROOT:ro")
+fi
+if [[ -n "$HOST_PLE_ROOT" ]]; then
+  docker_args+=(--volume "$HOST_PLE_ROOT:$HOST_PLE_ROOT:ro")
+fi
 docker_args+=(--volume "$HOST_CACHE_BASE:/cache")
 
 if [[ "$NIXL" == on ]]; then

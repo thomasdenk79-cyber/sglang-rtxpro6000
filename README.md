@@ -15,7 +15,7 @@ hardware. Penny Royal is an SGLang-derived runtime tuned for **NVIDIA RTX PRO
 keep reusable state in system RAM and on NVMe, beyond what fits on the GPU,
 so long-running sessions can pick up from cached history.
 
-**524K context · HiCache + NIXL · FR-Spec + adaptive MTP**
+**262K native context · HiCache + NIXL · FR-Spec + adaptive MTP**
 
 [Get started](#build-and-launch) · [Conversation cache](#hicache-and-nixl) ·
 [Performance](#performance) ·
@@ -81,8 +81,9 @@ See the [release notes](RELEASE_NOTES_3.0.md) for the full change list.
 
 ## Two model profiles
 
-Both profiles support **524,288-token context**, tool calling, reasoning,
-images, HiCache RAM prefix caching, and optional NIXL disk caching.
+The Penny Royal 3.0 release profiles supported **524,288-token context**, tool
+calling, reasoning, images, HiCache RAM prefix caching, and optional NIXL disk
+caching.
 
 | Model | Weights | Speculative decoding | Checkpoints |
 |---|---|---|---|
@@ -124,6 +125,11 @@ For 27B alternatives, see the [Swift 27B results](SWIFT-27B.md) and the
 <a id="flash-next-v250-online-fp8-performance-at-a-glance"></a>
 
 ## Performance
+
+The measurements below document the earlier Penny Royal 3.0 release profile
+(524K context). They are historical evidence, not results for the current
+Swift BF16-PLE experiment profile, which uses 262,144 native context and has
+not been GPU-started or benchmarked.
 
 ### Flash-Next 3.0
 
@@ -237,12 +243,13 @@ extra tensor-parallel inference card. CPU preprocessing is also available.
 
 | Profile | Default host cache | Additional model-related host memory |
 |---|---|---|
-| Flash-Next | 32 GB HiCache | About 48 GiB for RAM-backed PLE |
+| Flash-Next | 32 GB HiCache | Baseline streams its 102.4-GB BF16 PLE table from local NVMe |
 | 27B/DFlash2 | 96 GB HiCache | Loading and runtime allocations |
 
 Leave room for the operating system and model loading. You can
-[change the RAM cache size](RUN.md#choose-hicache-ram-size), or move Flash-Next's
-PLE table to an SSD with [NVMe PLE](NVME-PLE.md).
+[change the RAM cache size](RUN.md#choose-hicache-ram-size), or use RAM-backed
+PLE explicitly instead of the baseline's local-NVMe table with
+[NVMe PLE](NVME-PLE.md).
 
 NIXL disk caching is **on by default and optional**. Switching it off keeps GPU
 and RAM prefix caching. NVMe PLE is a separate choice. The [launch guide](RUN.md)

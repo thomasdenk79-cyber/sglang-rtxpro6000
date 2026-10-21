@@ -1,17 +1,22 @@
 # Optional NVMe PLE for Flash-Next
 
-`PENNY_PLE_BACKEND=ram` remains the default. Both Flash-Next launcher recipes
-also accept `nvme`; the 27B launcher is unchanged. This changes storage, not
-PLE precision or model weights. Both Flash-Next recipes leave KV capacity to
+`PENNY_PLE_BACKEND=ram` remains the default for the non-FR-Spec and 27B recipes.
+The Flash-Next FR-Spec experiment profile selects `nvme` by default and accepts
+`ram` as an explicit opt-out. This changes storage, not PLE precision or model
+weights. Both Flash-Next recipes leave KV capacity to
 the engine's memory-based sizing; either accepts a positive, page-64-aligned
 `MAX_TOTAL_TOKENS` override when you want a cap of your own. Startup logs
 remain the source of truth for actual capacity; the launcher does not silently
 shrink a requested cap.
 
-The FP8 PLE table occupies approximately47.68GiB when pinned in RAM. Streaming
-uses two16MiB row buffers, row-ID staging and a32MiB reader pool instead.
-Filesystem page cache may still occupy RAM, but can be reclaimed. This is not
-a promise of47GiB more `free` RAM or any decode-speed improvement.
+The FP8 PLE table occupies approximately 47.68 GiB when pinned in RAM.
+Streaming uses two 16 MiB row buffers, row-ID staging and a 32 MiB reader pool
+instead. Filesystem page cache may still occupy RAM, but can be reclaimed.
+This is not a promise of 47 GiB more `free` RAM or any decode-speed improvement.
+
+The Swift BF16-PLE experiment's 128 table tensors span 32 checkpoint shards
+and 102.4 GB (decimal) in total. The reader supports the BF16 table dtype; this
+base profile streams it from the prepared NVMe overlay rather than pinning it.
 
 ## Prepare once
 

@@ -35,9 +35,9 @@ export SGLANG_MM_PREPROCESS_DEVICE=cpu
 # storage-backend argument, and no data removal. run.sh decides separately
 # whether /nixl is mounted; the two choices have to agree.
 NIXL=on
-# Flash-Next request/state capacity; the qualified pair is 4 requests/24 slots.
-MAX_RUNNING_REQUESTS=4
-MAX_MAMBA_CACHE_SIZE=24
+# The non-FR-Spec alternative retains its qualified request/state defaults.
+MAX_RUNNING_REQUESTS="${MAX_RUNNING_REQUESTS:-4}"
+MAX_MAMBA_CACHE_SIZE="${MAX_MAMBA_CACHE_SIZE:-24}"
 # ----------------------------------------------------------------------------
 
 export NUMPY_MADVISE_HUGEPAGE=0
@@ -242,7 +242,7 @@ if [[ "$NIXL" == on ]]; then
     --field "hicache_mem_layout=page_first" \
     --field "mamba_ssm_dtype=$MAMBA_SSM_DTYPE" \
     --field "mamba_conv_dtype=$MAMBA_CONV_DTYPE" \
-    --field "max_mamba_cache_size=$MAX_MAMBA_CACHE_SIZE" \
+    --field "max_mamba_cache_size=$MAMBA_CACHE_SIZE_ID" \
     --field "max_running_requests=$MAX_RUNNING_REQUESTS" \
     --field "mamba_radix_cache_strategy=extra_buffer" \
     --field "mamba_track_interval=$MAMBA_TRACK_INTERVAL" \
@@ -283,7 +283,7 @@ launch_args=(serve \
   --page-size "$PAGE_SIZE" --max-running-requests "$MAX_RUNNING_REQUESTS" --sleep-on-idle \
   --chunked-prefill-size "$PREFILL_CHUNK_SIZE" \
   --mamba-radix-cache-strategy extra_buffer --mamba-ssm-dtype "$MAMBA_SSM_DTYPE" \
-  --max-mamba-cache-size "$MAX_MAMBA_CACHE_SIZE" --gdn-mtp-cache-mode none \
+  "${MAMBA_CACHE_ARGS[@]}" --gdn-mtp-cache-mode none \
   --linear-attn-decode-backend flashinfer --linear-attn-prefill-backend flashinfer \
   --mamba-track-interval "$MAMBA_TRACK_INTERVAL" \
   --enable-hierarchical-cache --hicache-size "$HICACHE_SIZE_GB" --hicache-host-memory-mode cache \

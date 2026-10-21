@@ -44,7 +44,7 @@ BLOCK_SCALARS = {
     "MAMBA_SSM_DTYPE": "bfloat16",
     "MAMBA_CONV_DTYPE": "bfloat16",
     "MAMBA_TRACK_INTERVAL": "64",
-    "CONTEXT_LENGTH": "524288",
+    "CONTEXT_LENGTH": "262144",
     "PAGE_SIZE": "64",
     "PREFILL_CHUNK_SIZE": "4096",
     "HICACHE_SIZE_GB": "32",
@@ -89,7 +89,13 @@ def launch_argv(launcher: Path, **env_updates: str) -> subprocess.CompletedProce
         # The summary reads argv; the argv itself is the subject here.
         "pennyroyal_startup_summary() { :; }",
         "HICACHE_STORAGE_ARGS=()",
-        *[f"{name}={shlex.quote(value)}" for name, value in BLOCK_SCALARS.items()],
+        *[
+            f"{name}={shlex.quote(value)}"
+            for name, value in {
+                **BLOCK_SCALARS,
+                "CONTEXT_LENGTH": "262144" if "frspec" in launcher.name else "524288",
+            }.items()
+        ],
         'SCRIPT_DIR="$REPO_ROOT/configs/pennyroyal"',
         'source "$SCRIPT_DIR/request-capacity.sh"',
         'source "$SCRIPT_DIR/reasoning-effort.sh"',
@@ -103,7 +109,12 @@ def launch_argv(launcher: Path, **env_updates: str) -> subprocess.CompletedProce
     return subprocess.run(
         ["bash"],
         input="\n".join(lines) + "\n",
-        env={**env, **BLOCK_SCALARS, **env_updates},
+        env={
+            **env,
+            **BLOCK_SCALARS,
+            "CONTEXT_LENGTH": "262144" if "frspec" in launcher.name else "524288",
+            **env_updates,
+        },
         cwd=REPO,
         capture_output=True,
         text=True,
@@ -137,8 +148,17 @@ def test_an_explicit_page_aligned_cap_still_reaches_the_server():
         argv = argv_of(launch_argv(launcher, MAX_TOTAL_TOKENS="1048576"))
         assert caps(argv) == ["1048576"], (launcher, caps(argv))
         # Only the cap was requested: context and page size stay as qualified.
-        assert argv[argv.index("--context-length") + 1] == "524288", launcher
+        expected_context = "262144" if "frspec" in launcher.name else "524288"
+        assert argv[argv.index("--context-length") + 1] == expected_context, launcher
         assert argv[argv.index("--page-size") + 1] == "64", launcher
+
+
+def test_fr_spec_profile_uses_native_context_without_yarn_override():
+    for launcher in (FRSPEC_RECIPE, LAUNCH / "start-flash-next-frspec.sh"):
+        argv = argv_of(launch_argv(launcher))
+        assert argv[argv.index("--context-length") + 1] == "262144", launcher
+        assert "--json-model-override-args" not in argv, launcher
+        assert "--max-mamba-cache-size" not in argv, launcher
 
 
 def test_the_old_preset_is_now_an_ordinary_number():

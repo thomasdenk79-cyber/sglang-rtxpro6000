@@ -34,6 +34,8 @@ CONTROLLED = (
     "PENNYROYAL_PORT",
     "PENNYROYAL_USER",
     "HOST_MODELS_ROOT",
+    "HOST_CHECKPOINT_ROOT",
+    "HOST_PLE_ROOT",
     "HOST_CACHE_BASE",
     "HOST_NIXL_STORAGE_BASE",
     "NVIDIA_GPU",
@@ -310,6 +312,41 @@ def test_launcher_resolves_relative_host_paths(tmp_path):
     assert values_after(argv, "-e") == ["NIXL_CONFIG=/config/nixl conf.toml"]
 
 
+def test_launcher_preserves_checkpoint_and_ple_source_paths(tmp_path):
+    startup = tmp_path / "start.sh"
+    startup.write_text("#!/usr/bin/env bash\nexit 0\n")
+    models, cache, nixl = host_dirs(tmp_path)
+    checkpoint = tmp_path / "ai" / "models"
+    ple = tmp_path / "ai" / "ple"
+    checkpoint.mkdir(parents=True)
+    ple.mkdir(parents=True)
+
+    result, argv = run_launcher(
+        tmp_path,
+        "--startup",
+        str(startup),
+        "--models",
+        str(models),
+        "--checkpoint-root",
+        str(checkpoint),
+        "--ple-root",
+        str(ple),
+        "--cache",
+        str(cache),
+        "--nixl-root",
+        str(nixl),
+    )
+    assert result.returncode == 0, result.stderr
+    assert values_after(argv, "--volume") == [
+        f"{startup.parent}:/config:ro",
+        f"{models}:/models:ro",
+        f"{checkpoint}:{checkpoint}:ro",
+        f"{ple}:{ple}:ro",
+        f"{cache}:/cache",
+        f"{nixl}:/nixl",
+    ]
+
+
 def nixl_volumes(argv: list[str]) -> list[str]:
     return [item for item in values_after(argv, "--volume") if item.endswith(":/nixl")]
 
@@ -508,6 +545,14 @@ def prepared_config(
                 'TARGET_MODEL="/models/RadixArk-Qwen3.8-Flash-Next-NVFP4"',
                 f'TARGET_MODEL="{target}"',
             ),
+            (
+                'TARGET_MODEL="${TARGET_MODEL:-/srv/ai/models/Swift-1.5-Qwen3.8-Flash-Next-BF16PLE}"',
+                f'TARGET_MODEL="{target}"',
+            ),
+            (
+                'PENNY_PLE_BACKEND="${PENNY_PLE_BACKEND:-nvme}"',
+                "PENNY_PLE_BACKEND=ram",
+            ),
             ('TARGET_MODEL="/models/Qwen3.8-27B-FP8"', f'TARGET_MODEL="{target}"'),
             ('DRAFT_MODEL="/models/Qwen3.8-27B-DFlash2"', f'DRAFT_MODEL="{draft}"'),
             ("NIXL=on\n", f"NIXL={nixl}\n"),
@@ -594,11 +639,15 @@ def test_examples_are_editable_startup_files_with_container_paths(tmp_path):
         "start-27b-dflash2.sh",
     ):
         text = (CONFIGS / name).read_text()
-        assert 'TARGET_MODEL="/models/' in text, name
+        if "frspec" in name:
+            assert 'TARGET_MODEL="${TARGET_MODEL:-/srv/ai/models/' in text, name
+        else:
+            assert 'TARGET_MODEL="/models/' in text, name
         assert 'REPO_ROOT="${REPO_ROOT:-/opt/pennyroyal}"' in text, name
         # Helpers, the pinned template and the pinned map stay inside the image.
         assert 'source "$IMAGE_CONFIGS/chat-template.sh"' in text, name
-        assert "TARGET_OVERRIDES='" in text, name
+        if "frspec" not in name:
+            assert "TARGET_OVERRIDES='" in text, name
         # The disk tier is a setting inside the normal file, on by default, and
         # it gates only the NIXL root, config, helper and backend arguments.
         assert "NIXL=on\n" in text, name
@@ -607,6 +656,43 @@ def test_examples_are_editable_startup_files_with_container_paths(tmp_path):
         assert gate in text, name
     assert (CONFIGS / "nixl-posix.toml").is_file()
     assert (CONFIGS / "nixl-posix-frspec.toml").is_file()
+
+
+def test_only_verified_frspec_tokenizer_revisions_are_accepted():
+    helper = RECIPES / "frspec" / "tokenizer-compatibility.sh"
+    for digest in (
+        "0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3",
+        "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+    ):
+        result = subprocess.run(
+            [
+                "bash",
+                "-c",
+                'source "$1"; verify_frspec_tokenizer_sha "$2"',
+                "bash",
+                str(helper),
+                digest,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, result.stderr
+    rejected = subprocess.run(
+        [
+            "bash",
+            "-c",
+            'source "$1"; verify_frspec_tokenizer_sha "$2"',
+            "bash",
+            str(helper),
+            "0" * 64,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert rejected.returncode != 0
+    assert "not one of the verified" in rejected.stderr
 
 
 def test_mounted_startup_reaches_the_server_unchanged(tmp_path):
@@ -782,7 +868,7 @@ def test_disk_tier_off_in_the_frspec_example_needs_no_nixl_root(tmp_path):
     assert result.returncode != 0 and argv is None
     assert "Mount a writable directory at /nixl" not in result.stderr
     assert "NIXL config missing" not in result.stderr
-    assert "tokenizer differs from the qualified FR-Spec tokenizer" in result.stderr
+    assert "not one of the verified FR-Spec-compatible revisions" in result.stderr
 
 
 def test_container_startup_keeps_every_granted_gpu_visible(tmp_path):
@@ -825,7 +911,7 @@ def test_frspec_startup_keeps_its_pinned_assets(tmp_path):
     result, argv, _, _ = launch(tmp_path, config / "start-flash-next-frspec.sh")
     assert result.returncode != 0 and argv is None
     assert "Verifying the pinned FR-Spec map" in result.stdout
-    assert "tokenizer differs from the qualified FR-Spec tokenizer" in result.stderr
+    assert "not one of the verified FR-Spec-compatible revisions" in result.stderr
 
 
 def test_mounted_recipe_launches_exactly_like_the_image_recipe(tmp_path):
@@ -916,6 +1002,8 @@ def test_forwarded_settings_survive_the_mounted_script_for_every_profile(tmp_pat
         "export SGLANG_FORWARD_UNKNOWN_TOOLS=" '"${SGLANG_FORWARD_UNKNOWN_TOOLS:-true}"'
     ) in frspec
     assert "export SGLANG_FORWARD_UNKNOWN_TOOLS=true" not in frspec
+    assert 'PENNY_PLE_BACKEND="${PENNY_PLE_BACKEND:-nvme}"' in frspec
+    assert 'PENNY_PLE_NVME_MODEL="${PENNY_PLE_NVME_MODEL:-/srv/ai/ple/data/orcarouter-bf16-ple}"' in frspec
     # The 27b recipe pins its own capacity, TP and PLE placement in the launch
     # line, so an ambient value there is decoration: the saved settings must be
     # refused up front (penny_config's profile check), not quietly ignored.
@@ -1064,7 +1152,7 @@ def test_native_recipes_take_the_same_disk_tier_switch(tmp_path):
             tmp_path,
             path,
             through_entrypoint=False,
-            env={"NIXL": "off"},
+            env={"NIXL": "off", "PENNY_PLE_BACKEND": "ram"},
             nixl_root=tmp_path / "no nixl root here",
         )
         assert off_result.returncode == 0, (recipe, off_result.stderr)
@@ -1097,13 +1185,13 @@ def test_native_frspec_disk_tier_off_needs_no_nixl_root(tmp_path):
         tmp_path,
         RECIPES / "serve-flash-next-frspec.sh",
         through_entrypoint=False,
-        env={"NIXL": "off"},
+        env={"NIXL": "off", "PENNY_PLE_BACKEND": "ram"},
         nixl_root=tmp_path / "no nixl root here",
     )
     assert result.returncode != 0 and argv is None
     assert "NIXL config missing" not in result.stderr
     assert "Required executable missing" not in result.stderr
-    assert "tokenizer differs from the qualified FR-Spec tokenizer" in (result.stderr)
+    assert "not one of the verified FR-Spec-compatible revisions" in result.stderr
 
 
 if __name__ == "__main__":  # pytest is the real driver; this is a smoke check

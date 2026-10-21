@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Pennyroyal Flash-Next with FR-Spec and the NIXL FILE tier (the default
-# profile of the released image): startup settings for the prebuilt container.
+# Pennyroyal Flash-Next with FR-Spec and the NIXL FILE tier: startup settings
+# for the flashnext:bf16 experiment image.
 #
 # This is an ordinary SGLang startup script. Edit your settings below, then
 # start it: ./run.sh (this file is the launcher's default). The launcher mounts
@@ -13,22 +13,23 @@
 # REPO_ROOT (the image's /opt/pennyroyal).
 #
 # The launch flags, namespace fields and pinned assets below are the ones the
-# qualified configs/pennyroyal/serve-flash-next-frspec.sh recipe uses; keep
+# base configs/pennyroyal/serve-flash-next-frspec.sh recipe uses; keep
 # them in step if you change one, and review the watermarks in
 # nixl-posix-frspec.toml for your own filesystem.
 set -euo pipefail
 
 # --- Your settings ----------------------------------------------------------
 # Quote a value that contains a space.
-# Container paths: this directory's host counterpart is mounted at /models.
-TARGET_MODEL="/models/RadixArk-Qwen3.8-Flash-Next-NVFP4"
+# These source paths are bind-mounted at the same absolute paths by run.sh.
+TARGET_MODEL="${TARGET_MODEL:-/srv/ai/models/Swift-1.5-Qwen3.8-Flash-Next-BF16PLE}"
+PENNY_PLE_NVME_MODEL="${PENNY_PLE_NVME_MODEL:-/srv/ai/ple/data/orcarouter-bf16-ple}"
 # Host-RAM HiCache tier in decimal GB (SGLang sizes the pool at GB * 1e9).
 HICACHE_SIZE_GB=32
 # TP1 is the qualified topology; TP_SIZE=2 also needs run.sh --gpu 0,1.
 TP_SIZE=1
-# RAM keeps the original checkpoint and PLE path; nvme needs the prepared
-# snapshot plus run.sh --nvme-ple (see tools/ple_nvme/README.md).
-PENNY_PLE_BACKEND=ram
+# NVMe PLE needs the prepared snapshot plus run.sh --ple-root and --nvme-ple
+# (see tools/ple_nvme/README.md). RAM remains an explicit opt-out.
+PENNY_PLE_BACKEND="${PENNY_PLE_BACKEND:-nvme}"
 # cpu keeps vision work off the model GPU; cuda:N needs that extra device.
 export SGLANG_MM_PREPROCESS_DEVICE=cpu
 # Disk tier: on (the qualified default) adds the NIXL FILE backend under
@@ -37,13 +38,13 @@ export SGLANG_MM_PREPROCESS_DEVICE=cpu
 # storage-backend argument, and no data removal. run.sh decides separately
 # whether /nixl is mounted; the two choices have to agree.
 NIXL=on
-# Flash-Next request/state capacity; the qualified pair is 4 requests/24 slots.
+# Flash-Next request/state capacity; the Mamba pool is runtime-sized by default.
 # No KV cap is requested here: the pool is sized from the memory the engine
 # profiles. To cap it, give MAX_TOTAL_TOKENS a positive, page-64-aligned value
 # either below or as '-e MAX_TOTAL_TOKENS=...' in run.sh; a setting in this file
 # wins over that argument.
-MAX_RUNNING_REQUESTS=4
-MAX_MAMBA_CACHE_SIZE=24
+MAX_RUNNING_REQUESTS="${MAX_RUNNING_REQUESTS:-8}"
+MAX_MAMBA_CACHE_SIZE="${MAX_MAMBA_CACHE_SIZE:-}"
 # ----------------------------------------------------------------------------
 
 export NUMPY_MADVISE_HUGEPAGE=0
@@ -112,7 +113,7 @@ TOKEN_MAP="$IMAGE_CONFIGS/frspec/flash-next-64k.pt"
 # the host may edit.
 ADAPTIVE_CONFIG="$IMAGE_CONFIGS/adaptive-next.json"
 
-CONTEXT_LENGTH=524288
+CONTEXT_LENGTH=262144
 PAGE_SIZE=64
 if [[ ! "$TP_SIZE" =~ ^[1-9][0-9]*$ ]]; then
   echo "TP_SIZE must be a positive integer" >&2
@@ -213,7 +214,6 @@ source "$IMAGE_CONFIGS/ple-backend.sh"
 # an uncapped FR-Spec pool has not been measured.
 configure_max_total_tokens
 
-TARGET_OVERRIDES='{"text_config":{"rope_parameters":{"mrope_interleaved":true,"mrope_section":[11,11,10],"rope_type":"yarn","rope_theta":10000000,"partial_rotary_factor":0.25,"factor":2.0,"original_max_position_embeddings":262144}}}'
 printf 'Pennyroyal profile: Flash-Next FR-Spec\n  runtime: %s\n  target: %s\n  token map: %s\n  cache root: %s\n  NIXL root: %s\n' \
   "$SGLANG_EXE" "$TARGET_MODEL" "$TOKEN_MAP" "$CACHE_BASE" "${NIXL_STORAGE_BASE:-off}"
 echo "Verifying the pinned FR-Spec map, tokenizer and adaptive MTP policy..."
@@ -222,9 +222,8 @@ read -r TOKEN_MAP_SHA _ < <(sha256sum "$TOKEN_MAP")
   echo "FR-Spec map does not match the bundled checksum" >&2; exit 1;
 }
 read -r TOKENIZER_SHA _ < <(sha256sum "$TARGET_MODEL/tokenizer.json")
-[[ "$TOKENIZER_SHA" == 0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3 ]] || {
-  echo "Target tokenizer differs from the qualified FR-Spec tokenizer" >&2; exit 1;
-}
+source "$IMAGE_CONFIGS/frspec/tokenizer-compatibility.sh"
+verify_frspec_tokenizer_sha "$TOKENIZER_SHA"
 read -r ADAPTIVE_SHA _ < <(sha256sum "$ADAPTIVE_CONFIG")
 [[ "$ADAPTIVE_SHA" == 658158c29d2de8d2ee9c58ea8e7ac68a2dc70dd1ac1c46642e0a4302b798728f ]] || {
   echo "Adaptive MTP policy does not match the approved checksum" >&2; exit 1;
@@ -247,7 +246,7 @@ if [[ "$NIXL" == on ]]; then
   echo "Deriving NIXL namespace; checkpoint identity hashing may take time..."
   NIXL_STORAGE="$("$NAMESPACE_HELPER" \
     --base-root "$NIXL_STORAGE_BASE" \
-    --slug "qwen3_8_flash_next_frspec_524k_nextn_${SGLANG_REV}" \
+    --slug "qwen3_8_flash_next_frspec_262144_nextn_${SGLANG_REV}" \
     --git-repo "$REPO_ROOT" \
     --model "target=$TARGET_MODEL" \
     --field "chat_template_sha256=$CHAT_TEMPLATE_SHA" \
@@ -273,7 +272,7 @@ if [[ "$NIXL" == on ]]; then
     --field "hicache_mem_layout=page_first" \
     --field "mamba_ssm_dtype=$MAMBA_SSM_DTYPE" \
     --field "mamba_conv_dtype=$MAMBA_CONV_DTYPE" \
-    --field "max_mamba_cache_size=$MAX_MAMBA_CACHE_SIZE" \
+    --field "max_mamba_cache_size=$MAMBA_CACHE_SIZE_ID" \
     --field "max_running_requests=$MAX_RUNNING_REQUESTS" \
     --field "mamba_radix_cache_strategy=extra_buffer" \
     --field "mamba_track_interval=$MAMBA_TRACK_INTERVAL" \
@@ -283,7 +282,6 @@ if [[ "$NIXL" == on ]]; then
     "${PLE_NAMESPACE_ARGS[@]}" \
     --field "qsa_compressed_hicache=true" \
     --field "chunked_prefill_size=$PREFILL_CHUNK_SIZE" \
-    --field "target_model_overrides=$TARGET_OVERRIDES" \
     --field "torch_version=$TORCH_VERSION" \
     --field "cuda_arch=12.0")"
   export SGLANG_HICACHE_NIXL_BACKEND_STORAGE_DIR="$NIXL_STORAGE"
@@ -309,11 +307,11 @@ launch_args=(serve \
   --dtype "$COMPUTE_DTYPE" --quantization modelopt_fp4 --kv-cache-dtype "$KV_DTYPE" \
   --mem-fraction-static 0.981 \
   "${TOKEN_CAP_ARGS[@]}" --warmups=structured_output \
-  --context-length "$CONTEXT_LENGTH" --json-model-override-args "$TARGET_OVERRIDES" \
+  --context-length "$CONTEXT_LENGTH" \
   --page-size "$PAGE_SIZE" --max-running-requests "$MAX_RUNNING_REQUESTS" --sleep-on-idle \
   --chunked-prefill-size "$PREFILL_CHUNK_SIZE" \
   --mamba-radix-cache-strategy extra_buffer --mamba-ssm-dtype "$MAMBA_SSM_DTYPE" \
-  --max-mamba-cache-size "$MAX_MAMBA_CACHE_SIZE" --gdn-mtp-cache-mode none \
+  "${MAMBA_CACHE_ARGS[@]}" --gdn-mtp-cache-mode none \
   --linear-attn-decode-backend flashinfer --linear-attn-prefill-backend flashinfer \
   --mamba-track-interval "$MAMBA_TRACK_INTERVAL" \
   --enable-hierarchical-cache --hicache-size "$HICACHE_SIZE_GB" --hicache-host-memory-mode cache \

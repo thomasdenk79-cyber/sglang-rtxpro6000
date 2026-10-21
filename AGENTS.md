@@ -3,6 +3,23 @@
 This file is the continuation point for the Qwen3.8 Flash-Next work. Read it
 before changing this worktree; verify the live Git state and GPU again.
 
+## Current status
+
+- Active worktree: `/srv/work/flashnext/worktrees/bf16`, branch
+  `flashnext/bf16`, currently based at
+  `96a68e7f55fe8ee0cee3cd33c55161468dd20a18`.
+- The shared FR-Spec profile is implemented locally but not committed:
+  native 262,144 context, eight-request ceiling, automatic Mamba/KV sizing,
+  NVMe BF16 PLE, and aligned native/container launchers.
+- Focused CPU checks: 51 passed, 1 deselected; shell syntax and
+  `git diff --check` pass. The deselected legacy source-guard test has a stored
+  hash mismatch for an unrelated, unmodified QSA module.
+- No image build, model start, inference, benchmark, or production change has
+  been performed. The visible GPU is an RTX 3500 Ada, not the target RTX PRO
+  6000 Blackwell; `pennyroyal.service` is inactive.
+- Finalize and push this base before creating `flashnext/qsa` and
+  `flashnext/sm120`.
+
 ## Repository and branches
 
 - No new Git repository was created. The source repository is the existing
@@ -10,7 +27,8 @@ before changing this worktree; verify the live Git state and GPU again.
 - The active Git worktree is `/srv/work/flashnext/worktrees/bf16`,
   branch `flashnext/bf16`. The naming update is commit
   `ff702d2cd2edc42da09b76ee778fd37678b085cf`, based on
-  `ecf63dc72e24df52bb2dd522ab2b9baf2e1cf936`.
+  `ecf63dc72e24df52bb2dd522ab2b9baf2e1cf936`; later work is recorded in the
+  current-status section above.
 - Worktree Git metadata lives in
   `/srv/work/flashnext/pennyroyal/.git/worktrees/bf16`.
 - Upstream remote `origin` is `jpezzulli/sglang-rtxpro6000`. The user-owned
@@ -30,9 +48,9 @@ before changing this worktree; verify the live Git state and GPU again.
 
 ## Selected checkpoint direction
 
-The operator clarified on 2026-10-21: use the fastest/current NVFP4 main
-checkpoint together with its original BF16 PLE table, roughly 100 GB; do not
-use the FP8-PLE transplant as the common profile.
+The operator clarified: use the latest NVFP4 main checkpoint together with
+its original BF16 PLE table, roughly 100 GB; do not use the FP8-PLE transplant
+as the common profile.
 
 The prepared local target is
 `/srv/ai/models/Swift-1.5-Qwen3.8-Flash-Next-BF16PLE`. Its config reports
@@ -52,9 +70,10 @@ Tokenizer evidence from local artifacts:
   the FR-Spec map manifest expects RadixArk
   `0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3`.
 - The tokenizer pre-tokenizer regex and byte-level offset/decoder metadata
-  also differ. Do not simply remove the launcher's SHA guard. Verify the exact
-  FR-Spec map semantics and add a focused compatibility test before accepting
-  the Swift tokenizer hash.
+  differ. The launchers retain an exact SHA allowlist for the reference and
+  Swift files; 5,008 deterministic edge/random strings produced identical
+  token IDs with `tokenizers==0.22.2` and Transformers 5.12.1. Do not broaden
+  the allowlist without repeating compatibility checks.
 
 The FP8-PLE transplant utility and identity verifier from PR #76 were added in
 commit `7b385d564`, but must not be used to replace the selected BF16-PLE
@@ -77,34 +96,37 @@ profile. No model files were modified by prior work.
   an isolated container because host/runtime pytest was unavailable. A
   transplant dry-run validated inputs but did not write checkpoint files.
 
-## Required shared runtime profile to implement
+## Implemented shared runtime profile
 
-Update the native and prebuilt-container Flash-Next FR-Spec launch paths
-together and keep their argv/NIXL identity in sync:
+The native and prebuilt-container Flash-Next FR-Spec launch paths now use the
+same settings and keep their argv/NIXL identity in sync:
 
 - TP=1; ModelOpt NVFP4 weights; FP8 E4M3 KV.
 - Selected Swift NVFP4 + original BF16 PLE checkpoint; NVMe PLE offload.
 - Native context 262144 with no YaRN override.
 - 32 GB HiCache; L2 enabled; NIXL + NVMe L3 enabled, `page_first`,
   `kernel`, `write_through`.
-- Maximum 8 requests; preserve current FR-Spec and adaptive NEXTN MTP policy,
-  CUDA graph tiers, and SM120 kernels.
-- Do not pass `--max-total-tokens` or `--max-mamba-cache-size`; verify both
-  automatic sizing paths and log the effective Mamba capacity from runtime
-  startup output.
+- Maximum 8 requests (a ceiling, not a target batch); preserve FR-Spec,
+  adaptive NEXTN MTP policy, CUDA graph tiers, and SM120 kernels.
+- Do not pass `--max-total-tokens` or `--max-mamba-cache-size` by default;
+  both remain operator overrides, and the engine sizes the pools automatically.
 - Keep PLE-on-NVMe and HiCache/NIXL-L3 as distinct storage configurations.
 - Do not change model weights or KV dtype; no YaRN or experimental NVFP4-KV.
 - Do not add experimental scheduler behavior to `bf16`.
 
-At handover the recipes still use 524288 context, YaRN overrides, 4 requests,
-and an explicit Mamba cache size of 24. `server_args.py` defaults
-`max_mamba_cache_size` to `None`; `kv_cache_configurator.py` computes it from
-the memory budget. Existing automatic KV sizing is provided by the PR #86
-port. The recipe/test files that must be kept consistent include:
+The plain non-FR-Spec Flash-Next recipes intentionally retain their earlier
+4-request/24-slot and 524,288-context behavior. The FR-Spec helper defaults to
+8 requests and automatic Mamba sizing; explicit request counts above eight
+are rejected. `server_args.py` defaults `max_mamba_cache_size` to `None`,
+`kv_cache_configurator.py` computes it from the memory budget, and the PR #86
+port supplies automatic KV sizing. Related launchers, container mounts,
+examples, tests, and documentation have been updated together:
 
 - `configs/pennyroyal/serve-flash-next-frspec.sh`
 - `docker/pennyroyal/launch/config/start-flash-next-frspec.sh`
 - `configs/pennyroyal/request-capacity.sh`
+- `docker/pennyroyal/launch/run.sh` (`--checkpoint-root` and `--ple-root`
+  same-path read-only mounts)
 - compose/env examples and focused tests under
   `test/registered/unit/pennyroyal/`.
 
@@ -113,10 +135,10 @@ experiment.
 
 ## Remaining work
 
-1. Verify the prepared checkpoint's full provenance and FR-Spec tokenizer
-   compatibility; preserve the exact tokenizer evidence above.
-2. Implement the shared profile in `flashnext/bf16`; update targeted tests and
-   build/start documentation, then commit and push to the user-owned fork.
+1. Validate the profile diff, then commit and push the implemented
+   `flashnext/bf16` changes to the user-owned fork.
+2. Verify the prepared checkpoint's full Hub provenance and the end-checkpoint
+   PLE byte identity; provenance remains unresolved.
 3. Create `flashnext/qsa` and `flashnext/sm120` independently from
    the finalized base commit. Selectively review SGLang PRs #41173, #41175,
    and #43135 for variant 1; PR #35 and relevant AIUEO52 changes for variant 2.
@@ -127,12 +149,13 @@ experiment.
    blocked until the RTX PRO 6000 Blackwell is visible and its CDI mapping is
    verified.
 
-## Live state at handover
+## Live state
 
 - `nvidia-smi` lists only the RTX 3500 Ada; the RTX PRO 6000 Blackwell remains
   absent. `pennyroyal.service` is inactive. No model start, restart, inference,
   or benchmark was run.
-- The worktree was clean at `ecf63dc72` before the naming update; the prompt branch was clean at
+- The experiment worktree has the uncommitted base-profile changes listed
+  above. The prompt branch remains
   `e6fb2fa29340bcd3ab7310599e0ab6a67171863f`.
 - The LiteLLM and observability containers are separate from this source
   change; do not alter them as part of the experiment.
