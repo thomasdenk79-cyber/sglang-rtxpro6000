@@ -17,6 +17,7 @@ from sglang.srt.function_call.utils import (
     TOOL_PARSER_INCOMPLETE,
     TOOL_PARSER_PARSE_ERROR,
     TOOL_PARSER_UNKNOWN_TOOL,
+    get_schema_properties,
     infer_type_from_json_schema,
     record_tool_parser_event,
     safe_literal_eval,
@@ -112,9 +113,10 @@ class Qwen3CoderDetector(BaseFormatDetector):
                 except AttributeError:
                     return {}
 
-                if isinstance(params, dict) and "properties" in params:
-                    return params["properties"]
-                elif isinstance(params, dict):
+                if isinstance(params, dict):
+                    properties = get_schema_properties(params)
+                    if properties or "properties" in params:
+                        return properties
                     return params
                 else:
                     return {}
@@ -823,9 +825,7 @@ class Qwen3CoderDetector(BaseFormatDetector):
             ):
                 name_end = current_slice.find(">")
                 if name_end != -1:
-                    param_name = current_slice[
-                        len(self.parameter_prefix) : name_end
-                    ]
+                    param_name = current_slice[len(self.parameter_prefix) : name_end]
                     param_config = self._get_arguments_config(
                         self.current_func_name, tools
                     )

@@ -880,7 +880,9 @@ class UnifiedRadixCache(BasePrefixCache):
                 start_pos=req.cache_protected_len,
             )
 
-        self._dec_req_lock(req, skip_swa=req.swa_prefix_lock_released)
+        # Synthetic profiling requests may own KV without locking a tree node.
+        if req.last_node is not None:
+            self._dec_req_lock(req, skip_swa=req.swa_prefix_lock_released)
 
         if is_insert and result is not None and result.last_device_node is not None:
             req.last_node = result.last_device_node
@@ -1311,8 +1313,7 @@ class UnifiedRadixCache(BasePrefixCache):
         written = 0
         for node_id in action.node_ids:
             if not write_back and (
-                self.tree_core.node_by_id(node_id).write_through_pending_id
-                is not None
+                self.tree_core.node_by_id(node_id).write_through_pending_id is not None
             ):
                 # A backup for this node is already in flight (overlapping
                 # chain actions reach it again); its ack publishes the host
