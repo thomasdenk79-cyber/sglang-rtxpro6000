@@ -13,17 +13,29 @@ before changing this worktree; verify the live Git state and GPU again.
 - `flashnext/qsa` and `flashnext/sm120` now exist as independent branches,
   both based on this profile. Their implementation and test status is recorded
   in `docker/pennyroyal/FLASHNEXT-VARIANTS.md`.
-- Focused CPU checks: 51 passed, 1 deselected; shell syntax and
-  `git diff --check` pass. The deselected legacy source-guard test has a stored
-  hash mismatch for an unrelated, unmodified QSA module.
+- CPU suite in the built `flashnext:bf16` image, reader plugin on
+  `PYTHONPATH`: 169 passed, 6 failed. `test_source_guard_matches_every_hooked_
+  publication_module` now passes: commit `1d3b74e78` re-audited the manifest
+  with `tools/ple_nvme/refresh-source-guard.py`, and the earlier
+  "unmodified QSA module" diagnosis was wrong, the PR #79 port had changed
+  three guarded modules. Of the remaining five failures,
+  `test_recipes_source_and_run_the_tp_guard` is a real defect: it asserts
+  `device_ids: ["0", "1"]` inside `docker/pennyroyal/README.md`, which carries
+  no such text. The other four (one FlashInfer packaging, one prebuilt
+  launcher input check, two `test_prepare_ple_nvme` preflight cases) were not
+  diagnosed in this pass. Shell syntax and `git diff --check` pass.
 - QSA's Mamba alignment port passed 8 focused CPU tests; Python compilation,
   shell syntax, and diff checks passed. SM120's fused-writer tests passed
   (55 passed, 29 CUDA-only skipped); GPU byte-parity and graph-replay checks
   remain unverified.
-- No image build, model start, inference, benchmark, or production change has
-  been performed. The visible GPU is an RTX 3500 Ada, not the target RTX PRO
-  6000 Blackwell; `pennyroyal.service` is inactive. Checkpoint revision and PLE
-  table digest are verified and documented.
+- Image builds: `flashnext:bf16` is built from the pushed branch head with the
+  documented OCI arguments (`4375131c7e75`, labels verified, 16 GiB). QSA and
+  SM120 builds follow on their re-audited heads. No model start, inference,
+  benchmark, or production change has been performed. Both GPUs are visible in
+  NVML (Blackwell at PCI `4b:00.0`, driver 615.78.08); the CDI
+  `~/.config/cdi/nvidia.com-gpu-blackwell.json` exposes only the Blackwell, and
+  `podman run --device nvidia.com/gpu=1 ... nvidia-smi -L` confirms it.
+  Checkpoint revision and PLE table digest are verified and documented.
 
 ## Repository and branches
 
@@ -34,11 +46,14 @@ before changing this worktree; verify the live Git state and GPU again.
   `ff702d2cd2edc42da09b76ee778fd37678b085cf`, based on
   `ecf63dc72e24df52bb2dd522ab2b9baf2e1cf936`; later work is recorded in the
   current-status section above.
-- Current variant branches are `flashnext/qsa` at
-  `63fd73ef04fa51d956c50509979d7bd900944df0` and `flashnext/sm120` at
-  `fdfc29987c9a7ad038720a083929cc14be3c0e9`. Both are pushed to the user
-  fork. The base profile/metadata implementation is `760b2d6198e2104f8d7d6e7ee1d6448d1d253325`;
-  this handover update follows it.
+- Current variant branches, each pushed to the user fork and verified with
+  `git cat-file -t` after the previous two SHAs were found to be transcribed
+  rather than copied: `flashnext/bf16` at
+  `1d3b74e78069ae3ea78f98573025a0dcd24f452e`, `flashnext/qsa` at
+  `3407d5d84be123823106982541d7dbe4dcc0b549`, and `flashnext/sm120` at
+  `403f1da19d5d7247678f2dcda401ae78b447f88c`. The last commit on each branch is
+  the source-guard audit; the base profile/metadata implementation is
+  `760b2d6198e2104f8d7d6e7ee1d6448d1d253325`.
 - Worktree Git metadata lives in
   `/srv/work/flashnext/pennyroyal/.git/worktrees/bf16`.
 - Upstream remote `origin` is `jpezzulli/sglang-rtxpro6000`. The user-owned
@@ -128,9 +143,11 @@ same settings and keep their argv/NIXL identity in sync:
 - Do not add experimental scheduler behavior to `bf16`.
 
 The plain non-FR-Spec Flash-Next recipes intentionally retain their earlier
-4-request/24-slot and 524,288-context behavior. The FR-Spec helper defaults to
-8 requests and automatic Mamba sizing; explicit request counts above eight
-are rejected. `server_args.py` defaults `max_mamba_cache_size` to `None`,
+4-request/24-slot and 524,288-context defaults. The eight-request ceiling lives
+in the shared `configs/pennyroyal/request-capacity.sh`, which the plain recipes
+also source, so an override such as `MAX_RUNNING_REQUESTS=16` that was legal in
+v3.0.2 now exits with an error on every Flash-Next recipe, not only on FR-Spec.
+The FR-Spec helper defaults to 8 requests and automatic Mamba sizing. `server_args.py` defaults `max_mamba_cache_size` to `None`,
 `kv_cache_configurator.py` computes it from the memory budget, and the PR #86
 port supplies automatic KV sizing. Related launchers, container mounts,
 examples, tests, and documentation have been updated together:
@@ -148,8 +165,10 @@ experiment.
 
 ## Remaining work
 
-1. Build `flashnext:bf16`, `flashnext:qsa`, and `flashnext:sm120` from their
-   pushed branch heads using the documented OCI arguments, then inspect labels.
+1. Build `flashnext:qsa` and `flashnext:sm120` from their re-audited pushed
+   heads using the documented OCI arguments, then inspect labels. BF16 is done
+   (`4375131c7e75`); the images must be rebuilt again after any further guarded
+   module change, because the reader guard is source-hashed.
 2. CUDA byte-parity/graph tests for the optional SM120 writer and runtime
    correctness checks require the RTX PRO 6000 Blackwell and verified CDI.
 3. Do not run benchmarks or change production. GPU start, readiness, and
@@ -157,9 +176,10 @@ experiment.
 
 ## Live state
 
-- `nvidia-smi` lists only the RTX 3500 Ada; the RTX PRO 6000 Blackwell remains
-  absent. `pennyroyal.service` is inactive. No model start, restart, inference,
-  or benchmark was run.
+- `nvidia-smi` lists the RTX 3500 Ada and the RTX PRO 6000 Blackwell; the
+  production `luni-llm-orcarouter` container is up on the Blackwell and was not
+  touched. No model start, restart, inference, or benchmark was run for this
+  experiment.
 - The base-profile changes and both variant branches are committed and pushed.
   The prompt branch remains
   `e6fb2fa29340bcd3ab7310599e0ab6a67171863f`.

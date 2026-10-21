@@ -6,7 +6,7 @@ which selects the matching image tag.
 
 | Variant | Branch | Purpose | Variant implementation commit |
 |---|---|---|---|
-| BF16 | `flashnext/bf16` | Shared baseline | `e6ffa59942fc886d10aefa3d8396995806569dac` |
+| BF16 | `flashnext/bf16` | Shared baseline | `889268c66` |
 | QSA | `flashnext/qsa` | Mamba checkpoint-grid prefill alignment | `afb6e9d0a14d449e2b0e8075a0f6b92595cd0822` |
 | SM120 | `flashnext/sm120` | Optional fused FP8 KV writer | `78a05b2113ebaea3bb7f971f59c42a6d27df2820` |
 
