@@ -5,6 +5,9 @@ before changing this worktree; verify the live Git state and GPU again.
 
 ## Current status
 
+- The shared FR-Spec profile runs the qualified 524,288 context through the
+  YaRN `factor 2.0` override, with an eight-request ceiling, automatic
+  Mamba/KV sizing, and PLE on NVMe.
 - Active worktree: `/srv/work/flashnext/worktrees/sm120`, branch
   `flashnext/sm120`, based on the finalized BF16 profile and handover commit
   `e6ffa5994`.
