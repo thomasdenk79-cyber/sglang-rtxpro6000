@@ -1,5 +1,5 @@
 {
-  "source": "Pennyroyal v3.0.2@6b501b800181756890561fe3107c2ed551c1d302 + flashnext/bf16@80b12789147562a624739c8160b93910d79f5650",
+  "source": "Pennyroyal v3.0.2@6b501b800181756890561fe3107c2ed551c1d302 + flashnext/qsa@ebd844428ecaf9ea2e3b21cb8a22c91308b59862",
   "modules": {
     "sglang.srt.layers.attention.qsa.kernel": "4892126cf6dfbf1a528929764460b09ca18836362b7651b25423b444ebbb6e76",
     "sglang.srt.layers.attention.qsa.sparse_attn": "c7052125569f3c0fa9a0a4d62d2f57433faec636ad82a1d99c3b39e267b7904c",
