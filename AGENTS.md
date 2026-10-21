@@ -30,12 +30,16 @@ before changing this worktree; verify the live Git state and GPU again.
   shell syntax, and diff checks passed. SM120's fused-writer tests passed
   (55 passed, 29 CUDA-only skipped); GPU byte-parity and graph-replay checks
   remain unverified.
-- Image builds: `flashnext:bf16` is built from the pushed branch head with the
-  documented OCI arguments (`6582043efe9b`, revision label
-  `b9e3370def8392680ef15e137d054eb375c9fcd0`, `created` populated, 16 GiB). QSA
-  and SM120 builds follow on their re-audited heads. No model start, inference,
-  benchmark, or production change has been performed. Both GPUs are visible in
-  NVML (Blackwell at PCI `4b:00.0`, driver 615.78.08); the CDI
+- Image builds: `flashnext:bf16` is built at the branch tip with the documented
+  OCI arguments and the build-time provenance guard (`185483ea993a`, revision
+  label `c4dd2896e55424c47515cbe2f1945590f0ffcf56`, `created` populated, 16 GiB);
+  its CPU suite with the reader plugin on `PYTHONPATH` gives 172 passed,
+  3 failed, matching the audit build. QSA and SM120 rebuild on their tips.
+  A documentation commit after an image build is expected and does not require
+  a rebuild: the guard hashes guarded modules only, and this bullet names the
+  head the image was built from. No model start, inference, benchmark, or
+  production change has been performed. Both GPUs are visible in NVML (Blackwell
+  at PCI `4b:00.0`, driver 615.78.08); the CDI
   `~/.config/cdi/nvidia.com-gpu-blackwell.json` exposes only the Blackwell, and
   `podman run --device nvidia.com/gpu=1 ... nvidia-smi -L` confirms it.
   Checkpoint revision and PLE table digest are verified and documented.
@@ -49,15 +53,13 @@ before changing this worktree; verify the live Git state and GPU again.
   `ff702d2cd2edc42da09b76ee778fd37678b085cf`, based on
   `ecf63dc72e24df52bb2dd522ab2b9baf2e1cf936`; later work is recorded in the
   current-status section above.
-- Current variant branches, each pushed to the user fork and each verified with
-  `git cat-file -t` after two recorded SHAs turned out to be transcribed rather
-  than copied: `flashnext/bf16` at
-  `c6b712a100fd9e1bc2ce1375b5d93e1e206499d8`, `flashnext/qsa` at
-  `060793465fbca866330b1ae827925079e6cec9b1`, and `flashnext/sm120` at
-  `78902bb6bcb9fc00e089c201c8b91ba17fbff643`. Each branch tip is the build-time
-  provenance guard, one commit above the source-guard audit; the base
-  profile/metadata implementation is
-  `760b2d6198e2104f8d7d6e7ee1d6448d1d253325`.
+- Current variant branches, pushed to the user fork: `flashnext/bf16`,
+  `flashnext/qsa`, `flashnext/sm120`. Read the tips with
+  `git rev-parse fork/flashnext/<branch>`; this line intentionally does not
+  restate them, because two recorded SHAs here were previously transcribed
+  rather than copied and resolved to nothing. Each tip carries the source-guard
+  audit and the build-time provenance guard; the base profile/metadata
+  implementation is `760b2d6198e2104f8d7d6e7ee1d6448d1d253325`.
 - Worktree Git metadata lives in
   `/srv/work/flashnext/pennyroyal/.git/worktrees/bf16`.
 - Upstream remote `origin` is `jpezzulli/sglang-rtxpro6000`. The user-owned
@@ -169,9 +171,9 @@ experiment.
 
 ## Remaining work
 
-1. Build `flashnext:qsa` and `flashnext:sm120` from their re-audited pushed
-   heads using the documented OCI arguments, then inspect labels. BF16 is done
-   (`6582043efe9b`); the images must be rebuilt again after any further guarded
+1. Build `flashnext:qsa` and `flashnext:sm120` at their branch tips using the
+   documented OCI arguments, then inspect labels. BF16 is done
+   (`185483ea993a`); the images must be rebuilt again after any further guarded
    module change, because the reader guard is source-hashed.
 2. CUDA byte-parity/graph tests for the optional SM120 writer and runtime
    correctness checks require the RTX PRO 6000 Blackwell and verified CDI.
