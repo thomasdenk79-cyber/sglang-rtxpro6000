@@ -66,8 +66,12 @@ prepare_prompt() {
 
 run_one() {
   local name=$1 serial=$2
-  local dir="$OUT/$name/run$serial" worktree="$OUT/$name/worktree" log="$dir/log.txt"
-  local meta="$dir/meta.env" prompt_file="$dir/prompt.md" start end rc dirty cmd
+  local dir="$OUT/$name/run$serial"
+  local worktree="$OUT/$name/worktree"
+  local log="$dir/log.txt"
+  local meta="$dir/meta.env"
+  local prompt_file="$dir/prompt.md"
+  local start end rc dirty cmd reason
   mkdir -p "$dir"
   git -C "$REPO" worktree add --detach --force "$worktree" "$HEADSHA" >/dev/null 2>&1 || {
     echo "worktree add failed for $name" >&2
@@ -82,6 +86,13 @@ run_one() {
   ) > "$log" 2>&1
   rc=$?
   end=$(date +%s)
+  case $rc in
+    0) reason=finished ;;
+    124) reason=timeout ;;
+    137) reason=killed ;;
+    9) reason=no_worktree ;;
+    *) reason=error ;;
+  esac
   dirty=$(git -C "$worktree" status --porcelain | wc -l)
   git -C "$worktree" status --porcelain > "$dir/gitstatus.txt"
   {
@@ -91,7 +102,7 @@ run_one() {
     echo "secs=$((end - start))"
     echo "bytes=$(wc -c < "$log")"
     echo "dirty=$dirty"
-    echo "exit_reason=$(case $rc in 0) finished ;; 124) timeout ;; 137) killed ;; 9) no_worktree ;; *) error ;; esac)"
+    echo "exit_reason=$reason"
     echo "start=$(date -u -d @"$start" +%FT%TZ)"
     echo "end=$(date -u -d @"$end" +%FT%TZ)"
   } > "$meta"

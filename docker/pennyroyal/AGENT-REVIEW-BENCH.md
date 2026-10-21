@@ -90,13 +90,22 @@ keine Aenderung an getrackten Dateien. Der Produktionscontainer
 | hermes | `--usage-file` muss vor dem Subcommand stehen |
 | aider | unbekanntes Flag `--read-only`, fehlender `OPENAI_API_KEY`; spaeter `model-metadata-file` gegen die Warnseite noetig |
 
-## Runde 2 — vorbereitet, Start im ruhigen Fenster
+## Runde 2 — angefangen, vom Betreiber abgebrochen
 
 Ein Benchmark-Set laeuft allein. Diese Messung laeuft nicht parallel zu Builds,
 Bild-Baustellen, anderen Benchmark-Sets oder Engine-Starts; sie haelt den
 Router, die Platte und die CPU frei, damit Zeit und Tokenzahl vergleichbar
 bleiben. Nach den Reviewer-Benchmarks kommen im ruhigen Fenster die
 Performance-Benchmarks der Engine.
+
+Run `2026-10-21T05:52Z`, Kopf `ba8fff6bd5`, Grund `6b501b800`, Limit 1200 s,
+`--repeats 3`: nach dem ersten Lauf vom Betreiber abgebrochen, damit zuerst das
+BF16-Bild laeuft. Datenstand `/srv/work/flashnext/logs/agent-bench-round2`
+(unvollstaendig, ein Lauf). Der Smoke-Lauf vorher und dieser Anlauf haben zwei
+Runner-Defekte gezeigt, die jetzt behoben sind: `local dir=… log="$dir/…"` in
+einer Zeile ist mit `set -u` nicht benutzbar, weil alle Woerter vor der ersten
+Zuweisung expandiert werden, und `case` in einer Befehlssubstitution bricht dort
+an jeder `)`, wodurch `exit_reason` leer blieb.
 
 Runde 1 hatte vier Messluecken, die der Runner in diesem Verzeichnis schliesst:
 
