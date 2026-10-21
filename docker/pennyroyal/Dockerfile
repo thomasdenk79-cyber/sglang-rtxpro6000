@@ -113,6 +113,16 @@ ARG CHECKPOINT_REVISION
 ARG PLE_TABLE_SHA256
 ARG BUILD_TIMESTAMP
 ARG FLASHNEXT_VARIANT
+# The provenance labels are the artifact's only audit trail, so an argument-less
+# build has to fail here instead of shipping an image with blank io.flashnext.*
+# labels that a later operator cannot trace back to a branch head and checkpoint.
+RUN set -eu; for provenance_arg in SOURCE_REVISION SOURCE_REPOSITORY \
+      PENNYROYAL_BASE SGLANG_UPSTREAM_REFERENCE INTEGRATED_PATCHES \
+      CHECKPOINT_REVISION PLE_TABLE_SHA256 BUILD_TIMESTAMP FLASHNEXT_VARIANT; do \
+      eval "provenance_value=\${$provenance_arg:-}"; \
+      test -n "$provenance_value" \
+        || { echo "build arg $provenance_arg is required and must not be empty" >&2; exit 1; }; \
+    done
 # HiCache compiles its native SHA helper on first use and links libcrypto.
 # Keeping only the shared library makes a fresh cache fail at its first insert.
 RUN dnf install -y --setopt=install_weak_deps=False --nodocs openssl-devel \
