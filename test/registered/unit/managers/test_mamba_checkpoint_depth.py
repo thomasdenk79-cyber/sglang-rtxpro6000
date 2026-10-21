@@ -14,6 +14,10 @@ from unittest.mock import MagicMock
 import torch
 
 from sglang.srt.managers.schedule_batch import Req, ScheduleBatch
+from sglang.srt.managers.schedule_policy import (
+    _floor_chunk_cut,
+    combine_truncation_align,
+)
 from sglang.srt.runtime_context import get_context, mamba_track_grid
 from sglang.srt.sampling.sampling_params import SamplingParams
 from sglang.srt.server_args import (
@@ -69,6 +73,49 @@ class TestMambaCheckpointDepth(unittest.TestCase):
     def test_unwidened_tree_page_keeps_the_chunk_grid(self):
         depth = _track_seqlen(tree_page=CHUNK, prefix_len=16384, extend_len=4066)
         self.assertEqual(depth, 20416)
+
+
+class TestChunkedPrefillMambaAlignment(unittest.TestCase):
+    def test_combines_existing_alignment_with_mamba_grid(self):
+        self.assertEqual(combine_truncation_align(None, grid=CHUNK), CHUNK)
+        self.assertEqual(combine_truncation_align(4096, grid=CHUNK), 4096)
+        self.assertEqual(combine_truncation_align(96, grid=CHUNK), 192)
+        self.assertEqual(combine_truncation_align(4096, grid=1), 4096)
+
+    def test_continuing_cuts_stay_on_grid_without_zero_progress(self):
+        total = 100_000
+        prefix = 0
+        cuts = []
+        for budget in (8192, 5000, 8192, 3333, 8192, 777):
+            remaining = total - prefix
+            cut = _floor_chunk_cut(
+                min(budget, remaining),
+                extend_input_len=remaining,
+                truncation_align_size=CHUNK,
+            )
+            self.assertGreater(cut, 0)
+            self.assertEqual(cut % CHUNK, 0)
+            depth = _track_seqlen(
+                tree_page=CHUNK, prefix_len=prefix, extend_len=cut
+            )
+            self.assertEqual(depth % CHUNK, 0)
+            cuts.append(cut)
+            prefix += cut
+        self.assertEqual(cuts, [8192, 4992, 8192, 3328, 8192, 768])
+
+    def test_final_and_sub_grid_cuts_keep_their_length(self):
+        self.assertEqual(
+            _floor_chunk_cut(
+                37, extend_input_len=37, truncation_align_size=CHUNK
+            ),
+            37,
+        )
+        self.assertEqual(
+            _floor_chunk_cut(
+                40, extend_input_len=8192, truncation_align_size=CHUNK
+            ),
+            40,
+        )
 
 
 class TestMambaTrackGrid(unittest.TestCase):

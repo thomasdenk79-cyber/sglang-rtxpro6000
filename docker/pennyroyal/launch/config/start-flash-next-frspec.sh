@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Pennyroyal Flash-Next with FR-Spec and the NIXL FILE tier: startup settings
-# for the flashnext:bf16 experiment image.
+# for the flashnext:qsa experiment image.
 #
 # This is an ordinary SGLang startup script. Edit your settings below, then
 # start it: ./run.sh (this file is the launcher's default). The launcher mounts

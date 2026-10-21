@@ -106,7 +106,7 @@ startup files with the release image: the profile depends on helpers built from
 this branch. Its image has not been built yet; after building it, run:
 
 ```bash
-IMAGE='flashnext:bf16'
+IMAGE='flashnext:qsa'
 ./run.sh --image "$IMAGE" --startup config/start-flash-next-frspec.sh \
   --models /srv/ai/models --checkpoint-root /srv/ai/models --ple-root /srv/ai/ple \
   --nvme-ple

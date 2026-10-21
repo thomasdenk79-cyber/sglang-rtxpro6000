@@ -11,6 +11,7 @@ from sglang.srt.utils import get_bool_env_var, is_hip
 _ROUTING_KEY_POLICY_DEBUG_LOG = get_bool_env_var("SGLANG_ROUTING_KEY_POLICY_DEBUG_LOG")
 logger = logging.getLogger(__name__)
 
+
 # Copyright 2023-2024 SGLang Team
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,6 +27,7 @@ logger = logging.getLogger(__name__)
 # ==============================================================================
 """Request scheduler policy"""
 
+import math
 import os
 import random
 from collections import Counter, defaultdict
@@ -65,6 +67,25 @@ from sglang.srt.server_args import ServerArgs
 
 if TYPE_CHECKING:
     from sglang.srt.mem_cache.allocator import BaseTokenToKVPoolAllocator
+
+
+def combine_truncation_align(
+    truncation_align_size: Optional[int], *, grid: int
+) -> Optional[int]:
+    if grid <= 1:
+        return truncation_align_size
+    if truncation_align_size is None:
+        return grid
+    return math.lcm(truncation_align_size, grid)
+
+
+def _floor_chunk_cut(
+    cut_len: int, *, extend_input_len: int, truncation_align_size: Optional[int]
+) -> int:
+    if truncation_align_size is None or cut_len >= extend_input_len:
+        return cut_len
+    return cut_len // truncation_align_size * truncation_align_size or cut_len
+
 
 # Clip the estimation of max_new_tokens for the request whose max_new_tokens is very large.
 # This can prevent the server from being too conservative.
@@ -1003,7 +1024,9 @@ class PrefillAdder:
             else AddReqResult.CONTINUE
         )
 
-    def add_chunked_req(self, req: Req):
+    def add_chunked_req(
+        self, req: Req, *, truncation_align_size: Optional[int] = None
+    ):
         if self.dllm_config is not None:
             _rem_tokens = self._get_dllm_remain_tokens()
         else:
@@ -1036,7 +1059,11 @@ class PrefillAdder:
             req.prefix_indices
         )
         truncated = cand_extend_input_len > _rem_tokens
-        new_len = min(cand_extend_input_len, _rem_tokens)
+        new_len = _floor_chunk_cut(
+            min(cand_extend_input_len, _rem_tokens),
+            extend_input_len=cand_extend_input_len,
+            truncation_align_size=truncation_align_size,
+        )
         req.set_extend_range(len(req.prefix_indices), len(req.prefix_indices) + new_len)
         self.can_run_list.append(req)
         self._update_prefill_budget(
@@ -1071,7 +1098,9 @@ class PrefillAdder:
             else:
                 self.tree_cache.dec_lock_ref(last_node)
 
-    def add_one_req_ignore_eos(self, req: Req):
+    def add_one_req_ignore_eos(
+        self, req: Req, *, truncation_align_size: Optional[int] = None
+    ):
         cand_extend_input_len = len(req.full_untruncated_fill_ids) - len(
             req.prefix_indices
         )
@@ -1187,6 +1216,10 @@ class PrefillAdder:
 
             # Chunked prefill
             trunc_len = self.rem_chunk_tokens
+            if truncation_align_size is not None:
+                trunc_len = trunc_len // truncation_align_size * truncation_align_size
+                if trunc_len <= 0:
+                    return AddReqResult.OTHER
 
             if (tile_stop := self._check_prefill_tile_budget(trunc_len)) is not None:
                 return tile_stop
@@ -1220,7 +1253,9 @@ class PrefillAdder:
             return AddReqResult.OTHER
 
         if req.sampling_params.ignore_eos and getattr(self.tree_cache, "disable", True):
-            return self.add_one_req_ignore_eos(req)
+            return self.add_one_req_ignore_eos(
+                req, truncation_align_size=truncation_align_size
+            )
 
         # Reserve page_size for page-alignment overhead: the paged allocator may
         # consume one extra page per request (see alloc_extend), which

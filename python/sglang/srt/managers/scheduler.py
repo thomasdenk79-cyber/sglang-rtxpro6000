@@ -41,6 +41,7 @@ from sglang.srt.runtime_context import (
     get_schedule,
     get_serving,
     get_spec,
+    mamba_cache_chunk_size,
 )
 
 from sglang.srt.utils.common import suppress_noisy_warnings  # isort: skip
@@ -209,6 +210,7 @@ from sglang.srt.managers.schedule_policy import (
     AddReqResult,
     PrefillAdder,
     SchedulePolicy,
+    combine_truncation_align,
 )
 from sglang.srt.managers.scheduler_components.batch_result_processor import (
     SchedulerBatchResultProcessor,
@@ -649,6 +651,7 @@ class Scheduler(
 
         # Init prefill kv split size when deterministic inference is enabled with various attention backends
         self.init_deterministic_inference_config()
+        self.init_mamba_truncation_align()
 
         self.init_weight_updater()
 
@@ -1606,6 +1609,23 @@ class Scheduler(
         self.truncation_align_size = (
             get_int_env_var(env_var, default_size) if env_var else None
         )
+
+    def init_mamba_truncation_align(self):
+        """Keep chunked-prefill cuts on the Mamba cache checkpoint grid."""
+        if self.server_args.enable_mamba_extra_buffer():
+            self.truncation_align_size = combine_truncation_align(
+                self.truncation_align_size, grid=mamba_cache_chunk_size()
+            )
+            if (
+                self.chunked_prefill_size is not None
+                and self.truncation_align_size is not None
+                and self.chunked_prefill_size < self.truncation_align_size
+            ):
+                raise ValueError(
+                    "chunked_prefill_size must be at least "
+                    f"{self.truncation_align_size} when Mamba cache checkpoints "
+                    "are enabled"
+                )
 
     def init_request_dispatcher(self):
         self._request_dispatcher = TypeBasedDispatcher(
@@ -3477,7 +3497,9 @@ class Scheduler(
 
         if self.chunked_req is not None:
             self.chunked_req.init_next_round_input()
-            self.chunked_req = adder.add_chunked_req(self.chunked_req)
+            self.chunked_req = adder.add_chunked_req(
+                self.chunked_req, truncation_align_size=self.truncation_align_size
+            )
 
         if self.enable_lora:
             running_loras = {
