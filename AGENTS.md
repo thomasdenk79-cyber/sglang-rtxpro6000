@@ -14,23 +14,26 @@ before changing this worktree; verify the live Git state and GPU again.
   both based on this profile. Their implementation and test status is recorded
   in `docker/pennyroyal/FLASHNEXT-VARIANTS.md`.
 - CPU suite in the built `flashnext:bf16` image, reader plugin on
-  `PYTHONPATH`: 169 passed, 6 failed. `test_source_guard_matches_every_hooked_
-  publication_module` now passes: commit `1d3b74e78` re-audited the manifest
-  with `tools/ple_nvme/refresh-source-guard.py`, and the earlier
-  "unmodified QSA module" diagnosis was wrong, the PR #79 port had changed
-  three guarded modules. Of the remaining five failures,
+  `PYTHONPATH`: 172 passed, 3 failed. `test_source_guard_matches_every_hooked_
+  publication_module` passes: commit `1d3b74e78` re-audited the manifest with
+  `tools/ple_nvme/refresh-source-guard.py`, and the earlier "unmodified QSA
+  module" diagnosis was wrong, the PR #79 port had changed three guarded
+  modules. The same audit cured two `test_prepare_ple_nvme` preflight failures
+  that read the source string. Of the three remaining failures,
   `test_recipes_source_and_run_the_tp_guard` is a real defect: it asserts
   `device_ids: ["0", "1"]` inside `docker/pennyroyal/README.md`, which carries
-  no such text. The other four (one FlashInfer packaging, one prebuilt
-  launcher input check, two `test_prepare_ple_nvme` preflight cases) were not
-  diagnosed in this pass. Shell syntax and `git diff --check` pass.
+  no such text. `test_the_image_check_refuses_an_unpackaged_flashinfer` and
+  `test_launcher_refuses_missing_or_unreadable_inputs` are image-context
+  dependent checks, not diagnosed in this pass. Shell syntax and
+  `git diff --check` pass.
 - QSA's Mamba alignment port passed 8 focused CPU tests; Python compilation,
   shell syntax, and diff checks passed. SM120's fused-writer tests passed
   (55 passed, 29 CUDA-only skipped); GPU byte-parity and graph-replay checks
   remain unverified.
 - Image builds: `flashnext:bf16` is built from the pushed branch head with the
-  documented OCI arguments (`4375131c7e75`, labels verified, 16 GiB). QSA and
-  SM120 builds follow on their re-audited heads. No model start, inference,
+  documented OCI arguments (`6582043efe9b`, revision label
+  `b9e3370def8392680ef15e137d054eb375c9fcd0`, `created` populated, 16 GiB). QSA
+  and SM120 builds follow on their re-audited heads. No model start, inference,
   benchmark, or production change has been performed. Both GPUs are visible in
   NVML (Blackwell at PCI `4b:00.0`, driver 615.78.08); the CDI
   `~/.config/cdi/nvidia.com-gpu-blackwell.json` exposes only the Blackwell, and
@@ -167,7 +170,7 @@ experiment.
 
 1. Build `flashnext:qsa` and `flashnext:sm120` from their re-audited pushed
    heads using the documented OCI arguments, then inspect labels. BF16 is done
-   (`4375131c7e75`); the images must be rebuilt again after any further guarded
+   (`6582043efe9b`); the images must be rebuilt again after any further guarded
    module change, because the reader guard is source-hashed.
 2. CUDA byte-parity/graph tests for the optional SM120 writer and runtime
    correctness checks require the RTX PRO 6000 Blackwell and verified CDI.
