@@ -29,7 +29,8 @@ which selects the matching image tag.
 
 All variants use TP=1, ModelOpt NVFP4 weights, FP8 E4M3 KV, 524,288 context
 through the qualified YaRN `factor 2.0` override over the checkpoint's native
-262,144 positions, an eight-request ceiling, and the existing FR-Spec,
+262,144 positions, an eight-request ceiling, chunked prefill of 8192 tokens
+with a prefill-decode interval of 4, and the existing FR-Spec,
 adaptive NEXTN, and CUDA Graph policies. KV and Mamba capacities stay automatic.
 The selected local checkpoint is the Swift NVFP4 model with its original
 approximately 100-GB BF16 PLE table, streamed from NVMe. HiCache is 32 GiB;

@@ -141,6 +141,8 @@ same settings and keep their argv/NIXL identity in sync:
 - Context 524288 through the qualified YaRN override (`factor 2.0` over the
   checkpoint's native 262144 positions), passed as
   `--json-model-override-args`.
+- Chunked prefill 8192 tokens, with `--prefill-decode-interval 4` so four
+  decode rounds run after a prefill batch before the next prefill is scheduled.
 - 32 GB HiCache; L2 enabled; NIXL + NVMe L3 enabled, `page_first`,
   `kernel`, `write_through`.
 - Maximum 8 requests (a ceiling, not a target batch); preserve FR-Spec,
