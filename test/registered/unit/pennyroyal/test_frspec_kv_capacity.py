@@ -47,7 +47,7 @@ BLOCK_SCALARS = {
     "CONTEXT_LENGTH": "524288",
     "PAGE_SIZE": "64",
     "PREFILL_CHUNK_SIZE": "8192",
-    "PREFILL_DECODE_INTERVAL": "4",
+    "PREFILL_DECODE_INTERVAL": "8",
     "HICACHE_SIZE_GB": "32",
     "TARGET_OVERRIDES": '{"text_config":{"rope_parameters":{}}}',
     "IMAGE_PROCESSOR_BACKEND": "pil",
@@ -177,11 +177,11 @@ def test_fr_spec_launchers_set_the_schedule_parameters():
     for launcher in (FRSPEC_RECIPE, LAUNCH / "start-flash-next-frspec.sh"):
         source = launcher.read_text()
         assert "PREFILL_CHUNK_SIZE=8192" in source, launcher
-        assert "PREFILL_DECODE_INTERVAL=4" in source, launcher
+        assert "PREFILL_DECODE_INTERVAL=8" in source, launcher
         assert source.count("PREFILL_DECODE_INTERVAL") >= 3, launcher
     argv = argv_of(launch_argv(FRSPEC_RECIPE))
     assert argv[argv.index("--chunked-prefill-size") + 1] == "8192", argv
-    assert argv[argv.index("--prefill-decode-interval") + 1] == "4", argv
+    assert argv[argv.index("--prefill-decode-interval") + 1] == "8", argv
 
 
 def test_the_old_preset_is_now_an_ordinary_number():
