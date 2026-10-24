@@ -1,0 +1,15 @@
+[Unit]
+Description=Pennyroyal Engine (NVFP4-KV Swift-1.5, rootless Podman)
+After=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=3
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/podman start -a pennyroyal
+ExecStop=/usr/bin/podman stop -t 180 pennyroyal
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=default.target
